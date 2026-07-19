@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/tianshu-ai/local-bridge/compare/v0.2.1...v0.3.0) (2026-07-19)
+
+
+### Features
+
+* add short 'tsbridge' command + promote global install ([49cc688](https://github.com/tianshu-ai/local-bridge/commit/49cc688f68eabf93631260bd4f132079cea8dcea))
+
 ## [0.2.1](https://github.com/tianshu-ai/local-bridge/compare/v0.2.0...v0.2.1) (2026-07-19)
 
 
