@@ -1,46 +1,138 @@
-// Local browser tools, driven by Playwright against a real Chrome on the
-// user's machine. Lazily launches on first use. Exposes a small, useful
-// starter set; extend as needed.
+// Local browser tools, driven by Playwright against the user's OWN
+// Chrome — never a bundled/downloaded Chromium.
+//
+// Acquisition strategy (best → fallback), so we reuse the real browser
+// with its real fingerprint + logged-in cookies and avoid a heavy
+// download:
+//
+//   1. CONNECT over CDP to a Chrome the user already has running with
+//      `--remote-debugging-port` (default probe: http://127.0.0.1:9222).
+//      This is the user's actual browser — real profile, real session.
+//   2. LAUNCH the system-installed Google Chrome via Playwright's
+//      `channel: "chrome"` (no Chromium download). Optionally reuse the
+//      user's profile via `userDataDir` so logins carry over. Launched
+//      with automation-detection softened.
+//
+// Nothing here downloads a browser; if neither path works the tool
+// returns a clear, actionable error.
 
-import type { Browser, Page } from "playwright";
+import type { Browser, BrowserContext, Page } from "playwright";
 import { textResult, type LocalTool, type ToolResult } from "./protocol.js";
+
+export interface BrowserConfig {
+  /** CDP endpoint of an already-running Chrome. Empty string disables
+   *  the connect path. Default: http://127.0.0.1:9222 */
+  cdpUrl: string;
+  /** Playwright browser channel to launch when connect fails.
+   *  "chrome" = system Google Chrome (no download). Also "msedge",
+   *  "chrome-beta", etc. */
+  channel: string;
+  /** Reuse this Chrome profile dir (persistent context) so logins carry
+   *  over. Empty = ephemeral context. */
+  userDataDir: string;
+  /** Show the window. Launch path only (a connected Chrome keeps its
+   *  own state). Default true — a real browser people can watch. */
+  headful: boolean;
+  log: (m: string) => void;
+}
 
 interface BrowserState {
   browser: Browser | null;
+  context: BrowserContext | null;
   page: Page | null;
+  how: string; // human description of how we got the browser
 }
 
-async function ensurePage(state: BrowserState, headless: boolean): Promise<Page> {
-  if (!state.browser) {
-    const { chromium } = await import("playwright");
-    state.browser = await chromium.launch({ headless });
+// Args that soften automation detection (navigator.webdriver etc.).
+const STEALTH_ARGS = [
+  "--disable-blink-features=AutomationControlled",
+  "--no-default-browser-check",
+  "--no-first-run",
+];
+
+async function probeCdp(cdpUrl: string): Promise<boolean> {
+  if (!cdpUrl) return false;
+  try {
+    const base = cdpUrl.replace(/\/$/, "");
+    const res = await fetch(`${base}/json/version`, {
+      signal: AbortSignal.timeout(2500),
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
-  if (!state.page || state.page.isClosed()) {
-    state.page = await state.browser.newPage();
+}
+
+/** Acquire a Page, connecting to the user's Chrome or launching the
+ *  system Chrome. Cached after first success. */
+async function ensurePage(state: BrowserState, cfg: BrowserConfig): Promise<Page> {
+  if (state.page && !state.page.isClosed()) return state.page;
+
+  const { chromium } = await import("playwright");
+
+  // 1) Connect to an already-running Chrome over CDP.
+  if (!state.browser && !state.context && (await probeCdp(cfg.cdpUrl))) {
+    try {
+      const browser = await chromium.connectOverCDP(cfg.cdpUrl);
+      state.browser = browser;
+      const ctx = browser.contexts()[0] ?? (await browser.newContext());
+      state.context = ctx;
+      state.page = ctx.pages()[0] ?? (await ctx.newPage());
+      state.how = `connected to your running Chrome at ${cfg.cdpUrl}`;
+      cfg.log(state.how);
+      return state.page;
+    } catch (err) {
+      cfg.log(`CDP connect failed (${err instanceof Error ? err.message : String(err)}); falling back to launch`);
+    }
   }
+
+  // 2) Launch the system-installed Chrome (no Chromium download).
+  if (cfg.userDataDir) {
+    // Persistent context reuses the user's profile → logged-in sessions.
+    const ctx = await chromium.launchPersistentContext(cfg.userDataDir, {
+      channel: cfg.channel,
+      headless: !cfg.headful,
+      args: STEALTH_ARGS,
+    });
+    state.context = ctx;
+    state.page = ctx.pages()[0] ?? (await ctx.newPage());
+    state.how = `launched system ${cfg.channel} with your profile (${cfg.userDataDir})`;
+  } else {
+    const browser = await chromium.launch({
+      channel: cfg.channel,
+      headless: !cfg.headful,
+      args: STEALTH_ARGS,
+    });
+    state.browser = browser;
+    state.context = await browser.newContext();
+    state.page = await state.context.newPage();
+    state.how = `launched system ${cfg.channel} (ephemeral profile)`;
+  }
+  cfg.log(state.how);
   return state.page;
 }
 
-export function makeBrowserTools(opts: { headless: boolean }): LocalTool[] {
-  const state: BrowserState = { browser: null, page: null };
+export function makeBrowserTools(cfg: BrowserConfig): LocalTool[] {
+  const state: BrowserState = { browser: null, context: null, page: null, how: "" };
 
   const navigate: LocalTool = {
     descriptor: {
       name: "browser_navigate",
-      description: "Open a URL in the local browser and return the page title.",
+      description:
+        "Open a URL in the user's local browser and return the page title. Uses their real Chrome (real cookies/session).",
       inputSchema: {
         type: "object",
-        properties: { url: { type: "string", description: "Absolute URL to open." } },
+        properties: { url: { type: "string", description: "Absolute http(s) URL to open." } },
         required: ["url"],
       },
     },
     async run(args): Promise<ToolResult> {
       const url = String(args.url ?? "");
       if (!/^https?:\/\//i.test(url)) return textResult("url must be an absolute http(s) URL", true);
-      const page = await ensurePage(state, opts.headless);
+      const page = await ensurePage(state, cfg);
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
       const title = await page.title();
-      return textResult(`Navigated to ${page.url()}\nTitle: ${title}`);
+      return textResult(`Navigated to ${page.url()}\nTitle: ${title}\n(${state.how})`);
     },
   };
 
@@ -57,8 +149,7 @@ export function makeBrowserTools(opts: { headless: boolean }): LocalTool[] {
       if (!state.page || state.page.isClosed()) return textResult("no page open — call browser_navigate first", true);
       const selector = typeof args.selector === "string" && args.selector ? args.selector : "body";
       const text = await state.page.locator(selector).first().innerText({ timeout: 15_000 }).catch(() => "");
-      const clipped = text.slice(0, 8000);
-      return textResult(clipped || "(no text found)");
+      return textResult(text.slice(0, 8000) || "(no text found)");
     },
   };
 
@@ -83,12 +174,12 @@ export function makeBrowserTools(opts: { headless: boolean }): LocalTool[] {
   const screenshot: LocalTool = {
     descriptor: {
       name: "browser_screenshot",
-      description: "Capture a screenshot of the current page (returned as a note; saved locally).",
+      description: "Capture a screenshot of the current page (saved on the bridge host).",
       inputSchema: { type: "object", properties: {} },
     },
     async run(): Promise<ToolResult> {
       if (!state.page || state.page.isClosed()) return textResult("no page open — call browser_navigate first", true);
-      const path = `/tmp/tianshu-bridge-shot-${Date.now()}.png`;
+      const path = `/tmp/tianshu-local-bridge-shot-${Date.now()}.png`;
       await state.page.screenshot({ path, fullPage: false });
       return textResult(`screenshot saved on the bridge host at ${path}`);
     },

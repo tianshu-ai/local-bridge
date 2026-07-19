@@ -43,17 +43,33 @@ npx @tianshu-ai/local-bridge --server ws://localhost:3110/ws
 | `--token <token>` | connection token from the Local Bridge panel |
 | `--device <id>` | stable device id (default: hostname) |
 | `--label <name>` | human label shown in the panel |
-| `--headful` | show the browser window (default: headless) |
 | `--no-browser` | expose only the connectivity `echo` tool |
+| `--headless` | run the browser without a window (default: headful) |
+| `--cdp <url>` | connect to an already-running Chrome's CDP endpoint (default probe `http://127.0.0.1:9222`; `off` to skip) |
+| `--chrome-channel <ch>` | which installed browser to launch: `chrome` (default), `msedge`, … |
+| `--user-data-dir <dir>` | reuse a Chrome profile dir so logins carry over |
 
-The first run downloads a Chromium build for Playwright. Skip it with
-`--no-browser` if you only want to verify connectivity.
+**No Chromium download.** The bridge uses *your* Chrome:
+
+1. If a Chrome is already running with `--remote-debugging-port=9222`,
+   it connects to that (your real browser — real cookies + session).
+2. Otherwise it launches your system-installed Google Chrome via
+   Playwright's `channel: "chrome"`. Pass `--user-data-dir` to reuse
+   your logged-in profile.
+
+To expose your everyday browser, start Chrome with a debugging port:
+
+```bash
+# macOS
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222
+```
 
 ## Tools
 
 - `echo` — connectivity check.
 - `browser_navigate` / `browser_get_text` / `browser_click` /
-  `browser_screenshot` — drive a real local browser via Playwright.
+  `browser_screenshot` — drive your real local Chrome (via CDP connect
+  or system-Chrome launch; automation-detection softened).
 
 ## Protocol
 

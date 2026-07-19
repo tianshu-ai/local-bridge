@@ -11,8 +11,14 @@
 //   --token <token>    connection token from the Local Bridge panel
 //   --device <id>      stable device id (default: hostname)
 //   --label <name>     human label shown in the panel (default: device id)
-//   --headful          show the browser window (default: headless)
 //   --no-browser       don't expose browser tools (echo only)
+//   --headless         run the browser without a window (default: headful)
+//   --cdp <url>        connect to an already-running Chrome's CDP endpoint
+//                      (default probe: http://127.0.0.1:9222). Set to "off"
+//                      to skip and always launch.
+//   --chrome-channel   which installed browser to launch: chrome (default),
+//                      msedge, chrome-beta, … (never downloads Chromium)
+//   --user-data-dir    reuse a Chrome profile dir so logins carry over
 
 import os from "node:os";
 import { BridgeConnection } from "./connection.js";
@@ -47,7 +53,12 @@ function main(): void {
   const token = typeof args.token === "string" ? args.token : undefined;
   const deviceId = (typeof args.device === "string" && args.device) || os.hostname() || "bridge";
   const label = typeof args.label === "string" ? args.label : deviceId;
-  const headless = args.headful !== true;
+  // Default headful: a real browser window the user can watch. --headless to hide.
+  const headful = args.headless !== true;
+  const cdpArg = typeof args.cdp === "string" ? args.cdp : "http://127.0.0.1:9222";
+  const cdpUrl = cdpArg === "off" ? "" : cdpArg;
+  const channel = typeof args["chrome-channel"] === "string" ? (args["chrome-channel"] as string) : "chrome";
+  const userDataDir = typeof args["user-data-dir"] === "string" ? (args["user-data-dir"] as string) : "";
 
   // Always ship a trivial echo tool so the round-trip can be verified
   // without a browser install.
@@ -62,9 +73,18 @@ function main(): void {
     },
   };
 
+  const browserOn = args["no-browser"] !== true;
   const tools: LocalTool[] = [echo];
-  if (args.browser !== false && args["no-browser"] !== true) {
-    tools.push(...makeBrowserTools({ headless }));
+  if (browserOn) {
+    tools.push(
+      ...makeBrowserTools({
+        cdpUrl,
+        channel,
+        userDataDir,
+        headful,
+        log: (m) => console.log(`[local-bridge] ${m}`),
+      }),
+    );
   }
 
   const conn = new BridgeConnection({
@@ -78,7 +98,7 @@ function main(): void {
 
   console.log(
     `[local-bridge] starting — device="${deviceId}", ${tools.length} tools, ` +
-      `browser=${args.browser !== false && args["no-browser"] !== true ? (headless ? "headless" : "headful") : "off"}`,
+      `browser=${browserOn ? (cdpUrl ? `connect(${cdpUrl}) or ${channel}` : channel) : "off"}`,
   );
   conn.start();
 
