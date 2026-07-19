@@ -1,8 +1,9 @@
-# tianshu-bridge
+# local-bridge
 
-A lightweight local client that connects your machine's tools (browser,
-and more) into a [tianshu](https://github.com/tianshu-ai/tianshu) server
-via **reverse-MCP**.
+`@tianshu-ai/local-bridge` — a lightweight local client that connects
+your machine's tools (browser, and more) into a
+[tianshu](https://github.com/tianshu-ai/tianshu) server via
+**reverse-MCP**.
 
 tianshu runs on a server. This bridge runs on **your** computer, dials
 out to the server over a WebSocket, and registers itself as an MCP
@@ -12,9 +13,9 @@ they were built in — but scoped to your own sessions only.
 ```
 your machine                         tianshu server
 ┌──────────────┐   outbound WSS    ┌──────────────────┐
-│ tianshu-bridge│ ────────────────▶ │ /ws (Local Bridge │
-│  • browser    │   register tools  │   plugin)         │
-│  • echo       │ ◀──── tools/call ─│   → agent uses    │
+│ local-bridge │ ────────────────▶ │ /ws (Local Bridge │
+│  • browser   │   register tools  │   plugin)         │
+│  • echo      │ ◀──── tools/call ─│   → agent uses    │
 └──────────────┘ ──── result ─────▶ │     your tools    │
                                     └──────────────────┘
 ```
@@ -25,13 +26,13 @@ Open the **Local Bridge** panel in tianshu, copy the command it shows,
 and run it on your machine:
 
 ```bash
-npx @tianshu-ai/bridge --server wss://your-tianshu.example.com/ws --token ***
+npx @tianshu-ai/local-bridge --server wss://your-tianshu.example.com/ws --token ***
 ```
 
 For a local dev server with auth off, the token is optional:
 
 ```bash
-npx @tianshu-ai/bridge --server ws://localhost:3110/ws
+npx @tianshu-ai/local-bridge --server ws://localhost:3110/ws
 ```
 
 ### Flags
@@ -68,5 +69,7 @@ npm install
 npm run build
 node dist/index.js --server ws://localhost:3110/ws --no-browser
 ```
+
+Repo: <https://github.com/tianshu-ai/local-bridge>
 
 Apache-2.0.

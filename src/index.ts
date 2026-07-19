@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// tianshu-bridge — dial into a tianshu server and expose local tools
-// (browser, …) to the agent via reverse-MCP.
+// @tianshu-ai/local-bridge — dial into a tianshu server and expose local
+// tools (browser, …) to the agent via reverse-MCP.
 //
 // Usage:
-//   tianshu-bridge --server wss://tianshu.example.com/ws --token ***
-//   tianshu-bridge --server ws://localhost:3110/ws            (dev, no auth)
+//   npx @tianshu-ai/local-bridge --server wss://tianshu.example.com/ws --token ***
+//   npx @tianshu-ai/local-bridge --server ws://localhost:3110/ws       (dev, no auth)
 //
 // Flags:
 //   --server <url>     tianshu chat WS endpoint (required)
@@ -41,7 +41,7 @@ function main(): void {
   const server = typeof args.server === "string" ? args.server : "";
   if (!server) {
     console.error("error: --server <wss://host/ws> is required");
-    console.error("example: tianshu-bridge --server wss://tianshu.example.com/ws --token ***");
+    console.error("example: npx @tianshu-ai/local-bridge --server wss://tianshu.example.com/ws --token ***");
     process.exit(2);
   }
   const token = typeof args.token === "string" ? args.token : undefined;
@@ -73,17 +73,17 @@ function main(): void {
     deviceId,
     label,
     tools,
-    log: (m) => console.log(`[tianshu-bridge] ${m}`),
+    log: (m) => console.log(`[local-bridge] ${m}`),
   });
 
   console.log(
-    `[tianshu-bridge] starting — device="${deviceId}", ${tools.length} tools, ` +
+    `[local-bridge] starting — device="${deviceId}", ${tools.length} tools, ` +
       `browser=${args.browser !== false && args["no-browser"] !== true ? (headless ? "headless" : "headful") : "off"}`,
   );
   conn.start();
 
   const shutdown = () => {
-    console.log("\n[tianshu-bridge] shutting down…");
+    console.log("\n[local-bridge] shutting down…");
     conn.stop();
     process.exit(0);
   };
