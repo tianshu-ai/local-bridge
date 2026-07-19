@@ -4,6 +4,7 @@
 // tools/call. This turns local-bridge into a general "expose a local
 // MCP server to tianshu" bridge — browser (stealth) is the first user.
 
+import os from "node:os";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { textResult, type LocalTool, type ToolDescriptor, type ToolResult } from "./protocol.js";
@@ -25,10 +26,15 @@ export interface McpChildOptions {
  *  as LocalTools. The Client stays connected for the process lifetime;
  *  tools/call is proxied straight through. */
 export async function connectMcpChild(opts: McpChildOptions): Promise<LocalTool[]> {
+  // Ensure HOME is set: @playwright/mcp & cloakbrowser-mcp derive their
+  // output dir from it, and a GUI-launched parent can have it empty
+  // (→ they try to mkdir /.playwright-mcp and crash).
+  const baseEnv: Record<string, string> = { ...(process.env as Record<string, string>) };
+  if (!baseEnv.HOME) baseEnv.HOME = os.homedir();
   const transport = new StdioClientTransport({
     command: opts.command,
     args: opts.args,
-    env: { ...process.env, ...(opts.env ?? {}) } as Record<string, string>,
+    env: { ...baseEnv, ...(opts.env ?? {}) } as Record<string, string>,
     stderr: "inherit",
   });
   const client = new Client({ name: opts.clientName ?? "tianshu-local-bridge", version: "0.1.0" });

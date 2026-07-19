@@ -66,6 +66,10 @@ func resolveTsbridge() -> (cmd: String, env: [String: String])? {
         let bin = (c as NSString).deletingLastPathComponent
         var env = ProcessInfo.processInfo.environment
         env["PATH"] = "\(bin):/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+        // GUI-launched processes can start with an empty/missing HOME;
+        // @playwright/mcp & cloakbrowser use it for their output dir
+        // (else they try to mkdir /.playwright-mcp and crash). Force it.
+        if (env["HOME"] ?? "").isEmpty { env["HOME"] = NSHomeDirectory() }
         return (c, env)
     }
     return nil
