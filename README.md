@@ -45,16 +45,17 @@ the CLI — a menu-bar icon with Start/Stop + Settings (server / token /
 browser engine / headless):
 
 ```bash
-npm i -g @tianshu-ai/local-bridge      # provides the tsbridge CLI the app drives
-curl -fsSL https://raw.githubusercontent.com/tianshu-ai/local-bridge/main/app/install-app.sh | bash
-# or, from a clone:  bash app/install-app.sh --run
+npm i -g @tianshu-ai/local-bridge
+tsbridge install-app --run
 ```
 
-It installs `Tianshu Bridge.app` to `~/Applications` (menu-bar only, no
-Dock icon). Click the bolt icon → Settings to configure, then Start.
-Requires Xcode command line tools (`xcode-select --install`) for the
-one-time `swiftc` build. First launch: right-click → Open (unsigned
-local build).
+That installs `Tianshu Bridge.app` to `~/Applications` (menu-bar only, no
+Dock icon) and launches it. Click the bolt icon → Settings to configure,
+then Start. Requires Xcode command line tools (`xcode-select --install`)
+for the one-time `swiftc` build. First launch: right-click → Open
+(unsigned local build).
+
+(`app/install-app.sh` is also available for a clone-based build.)
 
 For a local dev server with auth off, the token is optional:
 

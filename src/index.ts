@@ -26,11 +26,18 @@
 //                        (default probe http://127.0.0.1:9222; "off" to skip)
 //   --chrome-channel     own: which installed browser to launch (chrome, msedge, …)
 //   --user-data-dir      own: reuse a Chrome profile dir so logins carry over
+//
+// Subcommands:
+//   tsbridge update [--check|--dry-run|--tag <t>]   self-update
+//   tsbridge install-app [--run]                    build + install the
+//                                                   macOS menu-bar app
+//   tsbridge version                                print installed version
 
 import os from "node:os";
 import { BridgeConnection } from "./connection.js";
 import { connectMcpChild } from "./mcp-child.js";
 import { runUpdate, installedVersion } from "./update.js";
+import { installApp } from "./install-app.js";
 import type { LocalTool } from "./protocol.js";
 
 /** Is a Chrome already listening on this CDP endpoint? */
@@ -80,13 +87,23 @@ async function main(): Promise<void> {
     process.stdout.write(`@tianshu-ai/local-bridge v${installedVersion()}\n`);
     process.exit(0);
   }
+  if (sub === "install-app") {
+    process.exit(
+      installApp({
+        run: args.run === true,
+        dest: typeof args.dest === "string" ? args.dest : undefined,
+      }),
+    );
+  }
 
   const server = typeof args.server === "string" ? args.server : "";
   if (!server) {
     console.error("error: --server <wss://host/ws> is required");
     console.error("example: tsbridge --server wss://tianshu.example.com/ws --token ***");
     console.error("install:  npm i -g @tianshu-ai/local-bridge   (then run `tsbridge`)");
-    console.error("commands: tsbridge update [--check|--dry-run|--tag <t>]   |   tsbridge version");
+    console.error("commands: tsbridge update [--check|--dry-run|--tag <t>]");
+    console.error("          tsbridge install-app [--run]   (macOS menu-bar app)");
+    console.error("          tsbridge version");
     process.exit(2);
   }
   const token = typeof args.token === "string" ? args.token : undefined;

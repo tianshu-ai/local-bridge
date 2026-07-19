@@ -18,6 +18,7 @@
   },
   "files": [
     "dist",
+    "app/TianshuBridge.swift",
     "README.md"
   ],
   "scripts": {
