@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/tianshu-ai/local-bridge/compare/v0.2.0...v0.2.1) (2026-07-19)
+
+
+### Bug Fixes
+
+* add repository/homepage/bugs metadata for npm provenance ([fb09ba4](https://github.com/tianshu-ai/local-bridge/commit/fb09ba476233c99ef15c576e0ed2c0d89bb882f1))
+
 ## [0.2.0](https://github.com/tianshu-ai/local-bridge/compare/v0.1.0...v0.2.0) (2026-07-19)
 
 
