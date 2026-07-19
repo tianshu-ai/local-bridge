@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
-    "tianshu-local-bridge": "./dist/index.js"
+    "tianshu-local-bridge": "dist/index.js"
   },
   "files": [
     "dist",
@@ -15,7 +15,8 @@
     "build": "tsc",
     "dev": "tsc --watch --preserveWatchOutput",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "playwright": "^1.56.0",
@@ -28,5 +29,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
