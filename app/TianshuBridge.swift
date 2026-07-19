@@ -197,7 +197,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     // ── settings window (simple form) ──
     @objc func openSettings() {
         if configWindow == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 260),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 300),
                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
             w.title = "Tianshu Bridge Settings"
             w.center()
@@ -215,10 +215,22 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var headlessCheck: NSButton!
 
     private func makeSettingsView() -> NSView {
-        let v = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 260))
+        let v = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 300))
         func label(_ s: String, _ y: CGFloat) -> NSTextField {
             let l = NSTextField(labelWithString: s); l.frame = NSRect(x: 16, y: y, width: 90, height: 20); return l
         }
+        // Paste-config row: grab the config string copied from the
+        // tianshu Local Bridge panel and fill every field at once.
+        let paste = NSButton(title: "Paste from tianshu", target: self, action: #selector(pasteConfig))
+        paste.frame = NSRect(x: 16, y: 258, width: 200, height: 28)
+        paste.bezelStyle = .rounded
+        v.addSubview(paste)
+        let hint = NSTextField(labelWithString: "(copies server + token + browser settings)")
+        hint.frame = NSRect(x: 16, y: 238, width: 348, height: 16)
+        hint.font = NSFont.systemFont(ofSize: 10)
+        hint.textColor = .secondaryLabelColor
+        v.addSubview(hint)
+
         v.addSubview(label("Server", 210))
         serverField = NSTextField(frame: NSRect(x: 110, y: 208, width: 250, height: 24))
         serverField.stringValue = cfg.server; v.addSubview(serverField)
@@ -254,6 +266,35 @@ final class AppController: NSObject, NSApplicationDelegate {
         configWindow?.close()
         rebuildMenu()
         if bridge.isRunning { bridge.start(cfg) } // restart with new config
+    }
+
+    // Parse the config string copied from the tianshu panel and fill the
+    // form. Accepts a `tsbridge://configure?server=…&token=…&engine=…&
+    // headless=…` URL, or a bare query string of the same params.
+    @objc func pasteConfig() {
+        let raw = (NSPasteboard.general.string(forType: .string) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return alert("Clipboard is empty", "Copy the config from the tianshu Local Bridge panel first.") }
+        // Extract the query part whether it's a full URL or bare query.
+        var query = raw
+        if let q = raw.range(of: "?") { query = String(raw[raw.index(after: q.lowerBound)...]) }
+        var params: [String: String] = [:]
+        for pair in query.split(separator: "&") {
+            let kv = pair.split(separator: "=", maxSplits: 1).map(String.init)
+            if kv.count == 2 {
+                params[kv[0]] = kv[1].removingPercentEncoding ?? kv[1]
+            }
+        }
+        guard let server = params["server"], !server.isEmpty else {
+            return alert("Couldn't read config", "Expected a tsbridge://configure?server=… string copied from the tianshu panel.")
+        }
+        serverField.stringValue = server
+        if let t = params["token"] { tokenField.stringValue = t }
+        if let e = params["engine"] { enginePopup.selectItem(at: e == "stealth" ? 1 : 0) }
+        if let h = params["headless"] { headlessCheck.state = (h == "1" || h == "true") ? .on : .off }
+    }
+
+    private func alert(_ title: String, _ body: String) {
+        let a = NSAlert(); a.messageText = title; a.informativeText = body; a.runModal()
     }
 }
 
