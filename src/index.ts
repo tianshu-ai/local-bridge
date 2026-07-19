@@ -11,18 +11,23 @@
 //   --token <token>    connection token from the Local Bridge panel
 //   --device <id>      stable device id (default: hostname)
 //   --label <name>     human label shown in the panel (default: device id)
-//   --no-browser       don't expose browser tools (echo only)
-//   --headless         run the browser without a window (default: headful)
-//   --cdp <url>        connect to an already-running Chrome's CDP endpoint
-//                      (default probe: http://127.0.0.1:9222). Set to "off"
-//                      to skip and always launch.
-//   --chrome-channel   which installed browser to launch: chrome (default),
-//                      msedge, chrome-beta, … (never downloads Chromium)
-//   --user-data-dir    reuse a Chrome profile dir so logins carry over
+//   --no-browser         don't expose browser tools (echo only)
+//   --browser-engine     own | stealth (default: own)
+//                          own     = your system/running Chrome (no download,
+//                                    real cookies+fingerprint)
+//                          stealth = cloakbrowser-mcp (CloakBrowser stealth
+//                                    Chromium, full Playwright-MCP toolset,
+//                                    passes bot detection; ~200MB first run)
+//   --headless           run the browser without a window (own engine)
+//   --cdp <url>          own: connect to a running Chrome's CDP endpoint
+//                        (default probe http://127.0.0.1:9222; "off" to skip)
+//   --chrome-channel     own: which installed browser to launch (chrome, msedge, …)
+//   --user-data-dir      own: reuse a Chrome profile dir so logins carry over
 
 import os from "node:os";
 import { BridgeConnection } from "./connection.js";
 import { makeBrowserTools } from "./browser.js";
+import { connectMcpChild } from "./mcp-child.js";
 import { textResult, type LocalTool } from "./protocol.js";
 
 function parseArgs(argv: string[]): Record<string, string | boolean> {
@@ -42,7 +47,7 @@ function parseArgs(argv: string[]): Record<string, string | boolean> {
   return out;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const server = typeof args.server === "string" ? args.server : "";
   if (!server) {
@@ -74,17 +79,39 @@ function main(): void {
   };
 
   const browserOn = args["no-browser"] !== true;
+  const engine = args["browser-engine"] === "stealth" ? "stealth" : "own";
   const tools: LocalTool[] = [echo];
   if (browserOn) {
-    tools.push(
-      ...makeBrowserTools({
-        cdpUrl,
-        channel,
-        userDataDir,
-        headful,
-        log: (m) => console.log(`[local-bridge] ${m}`),
-      }),
-    );
+    if (engine === "stealth") {
+      // Full Playwright-MCP toolset pointed at CloakBrowser stealth
+      // Chromium. Spawned as a child MCP server over stdio.
+      try {
+        const stealthTools = await connectMcpChild({
+          command: "npx",
+          args: ["-y", "cloakbrowser-mcp@latest"],
+          env: headful ? {} : { PWMCP_HEADLESS: "1" },
+          log: (m) => console.log(`[local-bridge] ${m}`),
+        });
+        tools.push(...stealthTools);
+      } catch (err) {
+        console.error(
+          `[local-bridge] failed to start stealth browser (cloakbrowser-mcp): ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        process.exit(1);
+      }
+    } else {
+      tools.push(
+        ...makeBrowserTools({
+          cdpUrl,
+          channel,
+          userDataDir,
+          headful,
+          log: (m) => console.log(`[local-bridge] ${m}`),
+        }),
+      );
+    }
   }
 
   const conn = new BridgeConnection({
@@ -96,9 +123,15 @@ function main(): void {
     log: (m) => console.log(`[local-bridge] ${m}`),
   });
 
+  const browserDesc = !browserOn
+    ? "off"
+    : engine === "stealth"
+      ? "stealth (cloakbrowser)"
+      : cdpUrl
+        ? `own: connect(${cdpUrl}) or ${channel}`
+        : `own: ${channel}`;
   console.log(
-    `[local-bridge] starting — device="${deviceId}", ${tools.length} tools, ` +
-      `browser=${browserOn ? (cdpUrl ? `connect(${cdpUrl}) or ${channel}` : channel) : "off"}`,
+    `[local-bridge] starting — device="${deviceId}", ${tools.length} tools, browser=${browserDesc}`,
   );
   conn.start();
 
@@ -111,4 +144,7 @@ function main(): void {
   process.on("SIGTERM", shutdown);
 }
 
-main();
+main().catch((err) => {
+  console.error(`[local-bridge] fatal: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+});
