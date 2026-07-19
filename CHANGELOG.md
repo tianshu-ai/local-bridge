@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/tianshu-ai/local-bridge/compare/v0.3.0...v0.4.0) (2026-07-19)
+
+
+### Features
+
+* 'tsbridge update' command to check + self-update ([811ea54](https://github.com/tianshu-ai/local-bridge/commit/811ea542d8cc7f6c01ccba34f3712254950478a4))
+
+
+### Documentation
+
+* document tsbridge update/version commands ([3a2ff38](https://github.com/tianshu-ai/local-bridge/commit/3a2ff388edc9271553930b804e8a41c4c6da1169))
+
 ## [0.3.0](https://github.com/tianshu-ai/local-bridge/compare/v0.2.1...v0.3.0) (2026-07-19)
 
 
