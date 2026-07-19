@@ -2,8 +2,10 @@
 // @tianshu-ai/local-bridge — dial into a tianshu server and expose local
 // tools (browser, …) to the agent via reverse-MCP.
 //
-// Usage:
-//   npx @tianshu-ai/local-bridge --server wss://tianshu.example.com/ws --token ***
+// Install globally, then run `tsbridge`:
+//   npm i -g @tianshu-ai/local-bridge
+//   tsbridge --server wss://tianshu.example.com/ws --token ***
+// Or one-off via npx:
 //   npx @tianshu-ai/local-bridge --server ws://localhost:3110/ws       (dev, no auth)
 //
 // Flags:
@@ -52,7 +54,8 @@ async function main(): Promise<void> {
   const server = typeof args.server === "string" ? args.server : "";
   if (!server) {
     console.error("error: --server <wss://host/ws> is required");
-    console.error("example: npx @tianshu-ai/local-bridge --server wss://tianshu.example.com/ws --token ***");
+    console.error("example: tsbridge --server wss://tianshu.example.com/ws --token ***");
+    console.error("install:  npm i -g @tianshu-ai/local-bridge   (then run `tsbridge`)");
     process.exit(2);
   }
   const token = typeof args.token === "string" ? args.token : undefined;

@@ -22,18 +22,29 @@ your machine                         tianshu server
 
 ## Install & run
 
-Open the **Local Bridge** panel in tianshu, copy the command it shows,
-and run it on your machine:
+Install globally, then use the short `tsbridge` command:
+
+```bash
+npm i -g @tianshu-ai/local-bridge
+tsbridge --server wss://your-tianshu.example.com/ws --token ***
+```
+
+Or run one-off with `npx` (no install):
 
 ```bash
 npx @tianshu-ai/local-bridge --server wss://your-tianshu.example.com/ws --token ***
 ```
 
+The **Local Bridge** panel in tianshu shows a ready-to-copy command with
+your server URL + token filled in.
+
 For a local dev server with auth off, the token is optional:
 
 ```bash
-npx @tianshu-ai/local-bridge --server ws://localhost:3110/ws
+tsbridge --server ws://localhost:3110/ws
 ```
+
+> The `tsbridge` and `tianshu-local-bridge` commands are equivalent.
 
 ### Flags
 

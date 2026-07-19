@@ -13,6 +13,7 @@
   },
   "type": "module",
   "bin": {
+    "tsbridge": "dist/index.js",
     "tianshu-local-bridge": "dist/index.js"
   },
   "files": [
