@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-flight runs of this workflow when a new push lands on the same
+# branch / PR — saves CI minutes on rapid iterations.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Typecheck
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: ["22.x", "24.x"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        # Skip Playwright's browser download in CI — we only build/typecheck.
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: npm ci --no-audit --no-fund
+
+      - name: Type-check & build
+        run: npm run build
+
+      - name: Verify build artifacts
+        run: |
+          test -f dist/index.js
+          test -f dist/connection.js
+          test -f dist/browser.js
+          test -f dist/mcp-child.js
+          echo "✓ build artifacts present"
