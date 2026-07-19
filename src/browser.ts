@@ -174,14 +174,25 @@ export function makeBrowserTools(cfg: BrowserConfig): LocalTool[] {
   const screenshot: LocalTool = {
     descriptor: {
       name: "browser_screenshot",
-      description: "Capture a screenshot of the current page (saved on the bridge host).",
-      inputSchema: { type: "object", properties: {} },
+      description:
+        "Capture a screenshot of the current page. The image travels back to the server and is saved to your workspace; the tool returns its path (call bridge_view_image to look at it).",
+      inputSchema: {
+        type: "object",
+        properties: { fullPage: { type: "boolean", description: "Capture the full scrollable page (default false)." } },
+      },
     },
-    async run(): Promise<ToolResult> {
+    async run(args): Promise<ToolResult> {
       if (!state.page || state.page.isClosed()) return textResult("no page open — call browser_navigate first", true);
-      const path = `/tmp/tianshu-local-bridge-shot-${Date.now()}.png`;
-      await state.page.screenshot({ path, fullPage: false });
-      return textResult(`screenshot saved on the bridge host at ${path}`);
+      const buf = await state.page.screenshot({ fullPage: args.fullPage === true, type: "png" });
+      // Return the bytes as an MCP image block so the server can save
+      // them under the user's workspace. Bytes do NOT enter the agent
+      // context by default — the server stores + surfaces only a path.
+      return {
+        content: [
+          { type: "text", text: `screenshot of ${state.page.url()}` },
+          { type: "image", data: buf.toString("base64"), mimeType: "image/png" },
+        ],
+      };
     },
   };
 
