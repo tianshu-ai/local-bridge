@@ -35,7 +35,7 @@
 
 import os from "node:os";
 import { BridgeConnection } from "./connection.js";
-import { connectMcpChild } from "./mcp-child.js";
+import { connectMcpChild, bridgeOutputDir } from "./mcp-child.js";
 import { runUpdate, installedVersion } from "./update.js";
 import { installApp } from "./install-app.js";
 import type { LocalTool } from "./protocol.js";
@@ -148,7 +148,8 @@ async function main(): Promise<void> {
       // is up, else launch the system Chrome (channel). Same tool
       // surface as stealth; only the underlying browser differs.
       const log = (m: string) => console.log(`[local-bridge] ${m}`);
-      const mcpArgs = ["-y", "@playwright/mcp@latest"];
+      // Pin output dir explicitly so it never resolves against a bad cwd.
+      const mcpArgs = ["-y", "@playwright/mcp@latest", "--output-dir", bridgeOutputDir()];
       const cdpUp = cdpUrl ? await probeCdp(cdpUrl) : false;
       if (cdpUp) {
         mcpArgs.push("--cdp-endpoint", cdpUrl);

@@ -5,6 +5,8 @@
 // MCP server to tianshu" bridge — browser (stealth) is the first user.
 
 import os from "node:os";
+import fs from "node:fs";
+import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { textResult, type LocalTool, type ToolDescriptor, type ToolResult } from "./protocol.js";
@@ -25,12 +27,29 @@ export interface McpChildOptions {
 /** Start the child MCP server, list its tools, and return them wrapped
  *  as LocalTools. The Client stays connected for the process lifetime;
  *  tools/call is proxied straight through. */
+/** Our own working dir for the browser MCP children. Fixed + explicit
+ *  so output never lands in a surprise cwd. The crash we hit
+ *  (mkdir '/.playwright-mcp') was cloakbrowser/@playwright-mcp
+ *  resolving `.playwright-mcp` against cwd, which is `/` when launched
+ *  from a GUI app. Pin it under ~/.tianshu-bridge instead. */
+export function bridgeOutputDir(): string {
+  const dir = path.join(os.homedir(), ".tianshu-bridge", "playwright-mcp");
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch {
+    /* best-effort */
+  }
+  return dir;
+}
+
 export async function connectMcpChild(opts: McpChildOptions): Promise<LocalTool[]> {
-  // Ensure HOME is set: @playwright/mcp & cloakbrowser-mcp derive their
-  // output dir from it, and a GUI-launched parent can have it empty
-  // (→ they try to mkdir /.playwright-mcp and crash).
   const baseEnv: Record<string, string> = { ...(process.env as Record<string, string>) };
   if (!baseEnv.HOME) baseEnv.HOME = os.homedir();
+  // Pin the output dir explicitly (both cloakbrowser-mcp via env and
+  // @playwright/mcp via --output-dir honor this), so it never resolves
+  // to a bad cwd like '/'.
+  const outDir = bridgeOutputDir();
+  baseEnv.PLAYWRIGHT_MCP_OUTPUT_DIR = outDir;
   const transport = new StdioClientTransport({
     command: opts.command,
     args: opts.args,
