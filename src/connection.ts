@@ -101,7 +101,20 @@ export class BridgeConnection {
     });
 
     ws.on("error", (err) => {
-      this.log(`socket error: ${err instanceof Error ? err.message : String(err)}`);
+      const e = err as NodeJS.ErrnoException & { message?: string };
+      const detail =
+        [e.code, e.message].filter(Boolean).join(" ") ||
+        (err ? String(err) : "unknown (connection refused / handshake rejected?)");
+      this.log(`socket error connecting to ${this.opts.server}: ${detail}`);
+    });
+
+    // Surface non-101 handshake responses (auth/path problems), which
+    // otherwise arrive as an opaque error.
+    ws.on("unexpected-response", (_req, res) => {
+      this.log(
+        `server rejected the WebSocket upgrade: HTTP ${res.statusCode} ${res.statusMessage ?? ""} ` +
+          `(check --server URL/path and --token). Expected /ws to accept an upgrade.`,
+      );
     });
   }
 
