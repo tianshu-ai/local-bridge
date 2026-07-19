@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/tianshu-ai/local-bridge/compare/v0.4.0...v0.4.1) (2026-07-19)
+
+
+### Refactor
+
+* drop the echo connectivity tool ([1715871](https://github.com/tianshu-ai/local-bridge/commit/17158716b881ed42dd0f06876a00c040aa86b2a8))
+
 ## [0.4.0](https://github.com/tianshu-ai/local-bridge/compare/v0.3.0...v0.4.0) (2026-07-19)
 
 
