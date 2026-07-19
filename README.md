@@ -38,6 +38,24 @@ npx @tianshu-ai/local-bridge --server wss://your-tianshu.example.com/ws --token 
 The **Local Bridge** panel in tianshu shows a ready-to-copy command with
 your server URL + token filled in.
 
+### macOS menu-bar app
+
+Prefer a UI? Build a tiny native menu-bar app (no Electron) that wraps
+the CLI — a menu-bar icon with Start/Stop + Settings (server / token /
+browser engine / headless):
+
+```bash
+npm i -g @tianshu-ai/local-bridge      # provides the tsbridge CLI the app drives
+curl -fsSL https://raw.githubusercontent.com/tianshu-ai/local-bridge/main/app/install-app.sh | bash
+# or, from a clone:  bash app/install-app.sh --run
+```
+
+It installs `Tianshu Bridge.app` to `~/Applications` (menu-bar only, no
+Dock icon). Click the bolt icon → Settings to configure, then Start.
+Requires Xcode command line tools (`xcode-select --install`) for the
+one-time `swiftc` build. First launch: right-click → Open (unsigned
+local build).
+
 For a local dev server with auth off, the token is optional:
 
 ```bash
