@@ -29,10 +29,20 @@
 
 import os from "node:os";
 import { BridgeConnection } from "./connection.js";
-import { makeBrowserTools } from "./browser.js";
 import { connectMcpChild } from "./mcp-child.js";
 import { runUpdate, installedVersion } from "./update.js";
 import type { LocalTool } from "./protocol.js";
+
+/** Is a Chrome already listening on this CDP endpoint? */
+async function probeCdp(cdpUrl: string): Promise<boolean> {
+  try {
+    const base = cdpUrl.replace(/\/$/, "");
+    const res = await fetch(`${base}/json/version`, { signal: AbortSignal.timeout(2500) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 function parseArgs(argv: string[]): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {};
@@ -116,15 +126,35 @@ async function main(): Promise<void> {
         process.exit(1);
       }
     } else {
-      tools.push(
-        ...makeBrowserTools({
-          cdpUrl,
-          channel,
-          userDataDir,
-          headful,
-          log: (m) => console.log(`[local-bridge] ${m}`),
-        }),
-      );
+      // own engine: the full @playwright/mcp toolset pointed at the
+      // user's real Chrome — connect to a running Chrome over CDP if one
+      // is up, else launch the system Chrome (channel). Same tool
+      // surface as stealth; only the underlying browser differs.
+      const log = (m: string) => console.log(`[local-bridge] ${m}`);
+      const mcpArgs = ["-y", "@playwright/mcp@latest"];
+      const cdpUp = cdpUrl ? await probeCdp(cdpUrl) : false;
+      if (cdpUp) {
+        mcpArgs.push("--cdp-endpoint", cdpUrl);
+        log(`own: connecting to your running Chrome at ${cdpUrl}`);
+      } else {
+        // @playwright/mcp: --browser takes a browser OR chrome channel
+        // ("chrome", "msedge", …). Point it at the system Chrome.
+        mcpArgs.push("--browser", channel);
+        if (userDataDir) mcpArgs.push("--user-data-dir", userDataDir);
+        if (!headful) mcpArgs.push("--headless");
+        log(`own: launching system ${channel}${headful ? "" : " (headless)"}`);
+      }
+      try {
+        const ownTools = await connectMcpChild({ command: "npx", args: mcpArgs, log });
+        tools.push(...ownTools);
+      } catch (err) {
+        console.error(
+          `[local-bridge] failed to start browser (@playwright/mcp): ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        process.exit(1);
+      }
     }
   }
 

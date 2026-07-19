@@ -89,11 +89,16 @@ To expose your everyday browser, start Chrome with a debugging port:
 
 ## Tools
 
-- `browser_navigate` / `browser_get_text` / `browser_click` /
-  `browser_screenshot` — drive your real local Chrome (via CDP connect
-  or system-Chrome launch; automation-detection softened).
-- With `--browser-engine stealth`, the full Playwright-MCP toolset
-  (snapshot / fill_form / evaluate / tabs / …) pointed at CloakBrowser.
+Both engines expose the **full Playwright-MCP toolset** (navigate,
+snapshot, click, type, fill_form, evaluate, tabs, screenshot, …). Only
+the underlying browser differs:
+
+- **own** — `@playwright/mcp` pointed at *your* Chrome: connects over CDP
+  to a Chrome already running with `--remote-debugging-port`, else
+  launches your system Chrome (`--browser chrome`). Real cookies +
+  fingerprint, no Chromium download.
+- **stealth** — `cloakbrowser-mcp`: the same toolset on CloakBrowser
+  stealth Chromium (source-level anti-bot-detection patches).
 
 ## Protocol
 
