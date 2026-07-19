@@ -30,6 +30,7 @@ import os from "node:os";
 import { BridgeConnection } from "./connection.js";
 import { makeBrowserTools } from "./browser.js";
 import { connectMcpChild } from "./mcp-child.js";
+import { runUpdate, installedVersion } from "./update.js";
 import { textResult, type LocalTool } from "./protocol.js";
 
 function parseArgs(argv: string[]): Record<string, string | boolean> {
@@ -50,12 +51,25 @@ function parseArgs(argv: string[]): Record<string, string | boolean> {
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  // First positional (not starting with --) selects a subcommand.
+  const argv = process.argv.slice(2);
+  const sub = argv.find((a) => !a.startsWith("--"));
+  const args = parseArgs(argv);
+
+  if (sub === "update") {
+    process.exit(await runUpdate(args.yes === true || args.y === true));
+  }
+  if (sub === "version" || args.version === true || args.v === true) {
+    process.stdout.write(`@tianshu-ai/local-bridge v${installedVersion()}\n`);
+    process.exit(0);
+  }
+
   const server = typeof args.server === "string" ? args.server : "";
   if (!server) {
     console.error("error: --server <wss://host/ws> is required");
     console.error("example: tsbridge --server wss://tianshu.example.com/ws --token ***");
     console.error("install:  npm i -g @tianshu-ai/local-bridge   (then run `tsbridge`)");
+    console.error("commands: tsbridge update [--yes]   |   tsbridge version");
     process.exit(2);
   }
   const token = typeof args.token === "string" ? args.token : undefined;
