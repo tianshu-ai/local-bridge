@@ -15,7 +15,7 @@ your machine                         tianshu server
 ┌──────────────┐   outbound WSS    ┌──────────────────┐
 │ local-bridge │ ────────────────▶ │ /ws (Local Bridge │
 │  • browser   │   register tools  │   plugin)         │
-│  • echo      │ ◀──── tools/call ─│   → agent uses    │
+│    tools     │ ◀──── tools/call ─│   → agent uses    │
 └──────────────┘ ──── result ─────▶ │     your tools    │
                                     └──────────────────┘
 ```
@@ -62,7 +62,7 @@ tsbridge version        # print the installed version
 | `--token <token>` | connection token from the Local Bridge panel |
 | `--device <id>` | stable device id (default: hostname) |
 | `--label <name>` | human label shown in the panel |
-| `--no-browser` | expose only the connectivity `echo` tool |
+| `--no-browser` | don't expose browser tools |
 | `--headless` | run the browser without a window (default: headful) |
 | `--cdp <url>` | connect to an already-running Chrome's CDP endpoint (default probe `http://127.0.0.1:9222`; `off` to skip) |
 | `--chrome-channel <ch>` | which installed browser to launch: `chrome` (default), `msedge`, … |
@@ -85,10 +85,11 @@ To expose your everyday browser, start Chrome with a debugging port:
 
 ## Tools
 
-- `echo` — connectivity check.
 - `browser_navigate` / `browser_get_text` / `browser_click` /
   `browser_screenshot` — drive your real local Chrome (via CDP connect
   or system-Chrome launch; automation-detection softened).
+- With `--browser-engine stealth`, the full Playwright-MCP toolset
+  (snapshot / fill_form / evaluate / tabs / …) pointed at CloakBrowser.
 
 ## Protocol
 

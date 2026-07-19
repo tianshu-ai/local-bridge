@@ -13,7 +13,7 @@
 //   --token <token>    connection token from the Local Bridge panel
 //   --device <id>      stable device id (default: hostname)
 //   --label <name>     human label shown in the panel (default: device id)
-//   --no-browser         don't expose browser tools (echo only)
+//   --no-browser         don't expose browser tools
 //   --browser-engine     own | stealth (default: own)
 //                          own     = your system/running Chrome (no download,
 //                                    real cookies+fingerprint)
@@ -31,7 +31,7 @@ import { BridgeConnection } from "./connection.js";
 import { makeBrowserTools } from "./browser.js";
 import { connectMcpChild } from "./mcp-child.js";
 import { runUpdate, installedVersion } from "./update.js";
-import { textResult, type LocalTool } from "./protocol.js";
+import type { LocalTool } from "./protocol.js";
 
 function parseArgs(argv: string[]): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {};
@@ -82,22 +82,9 @@ async function main(): Promise<void> {
   const channel = typeof args["chrome-channel"] === "string" ? (args["chrome-channel"] as string) : "chrome";
   const userDataDir = typeof args["user-data-dir"] === "string" ? (args["user-data-dir"] as string) : "";
 
-  // Always ship a trivial echo tool so the round-trip can be verified
-  // without a browser install.
-  const echo: LocalTool = {
-    descriptor: {
-      name: "echo",
-      description: "Echo the given text back (bridge connectivity check).",
-      inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
-    },
-    async run(a) {
-      return textResult(String(a.text ?? ""));
-    },
-  };
-
   const browserOn = args["no-browser"] !== true;
   const engine = args["browser-engine"] === "stealth" ? "stealth" : "own";
-  const tools: LocalTool[] = [echo];
+  const tools: LocalTool[] = [];
   if (browserOn) {
     if (engine === "stealth") {
       // Full Playwright-MCP toolset pointed at CloakBrowser stealth
@@ -129,6 +116,13 @@ async function main(): Promise<void> {
         }),
       );
     }
+  }
+
+  if (tools.length === 0) {
+    console.error(
+      "[local-bridge] no tools enabled — nothing to expose. Remove --no-browser (or enable a capability) and try again.",
+    );
+    process.exit(2);
   }
 
   const conn = new BridgeConnection({
