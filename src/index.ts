@@ -57,7 +57,13 @@ async function main(): Promise<void> {
   const args = parseArgs(argv);
 
   if (sub === "update") {
-    process.exit(await runUpdate(args.yes === true || args.y === true));
+    process.exit(
+      await runUpdate({
+        check: args.check === true,
+        dryRun: args["dry-run"] === true,
+        tag: typeof args.tag === "string" ? args.tag : undefined,
+      }),
+    );
   }
   if (sub === "version" || args.version === true || args.v === true) {
     process.stdout.write(`@tianshu-ai/local-bridge v${installedVersion()}\n`);
@@ -69,7 +75,7 @@ async function main(): Promise<void> {
     console.error("error: --server <wss://host/ws> is required");
     console.error("example: tsbridge --server wss://tianshu.example.com/ws --token ***");
     console.error("install:  npm i -g @tianshu-ai/local-bridge   (then run `tsbridge`)");
-    console.error("commands: tsbridge update [--yes]   |   tsbridge version");
+    console.error("commands: tsbridge update [--check|--dry-run|--tag <t>]   |   tsbridge version");
     process.exit(2);
   }
   const token = typeof args.token === "string" ? args.token : undefined;

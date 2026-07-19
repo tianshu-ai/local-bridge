@@ -49,10 +49,14 @@ tsbridge --server ws://localhost:3110/ws
 ### Keeping it updated
 
 ```bash
-tsbridge update         # check npm for a newer version
-tsbridge update --yes   # check and self-update (npm i -g …@latest)
-tsbridge version        # print the installed version
+tsbridge update            # update to the latest version if newer (default)
+tsbridge update --check    # just check; exit 1 if an update is available
+tsbridge update --dry-run  # print the npm command without running it
+tsbridge update --tag next # target a non-`latest` dist-tag
+tsbridge version           # print the installed version
 ```
+
+(Same semantics as `tianshu update`.)
 
 ### Flags
 

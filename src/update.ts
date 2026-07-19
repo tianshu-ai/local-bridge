@@ -1,21 +1,35 @@
-// `tsbridge update` — check npm for a newer @tianshu-ai/local-bridge and
-// optionally self-update the global install.
+// `tsbridge update` — self-update the global @tianshu-ai/local-bridge
+// install. Behaviour mirrors `tianshu update` for a consistent CLI:
 //
-// Check-only by default; pass --yes to actually run the install. Uses
-// the npm registry JSON API (no auth) for the check, and `npm i -g` for
-// the apply so it works regardless of how the CLI was installed.
+//   tsbridge update            → check + install if newer (default: install)
+//   tsbridge update --check    → just compare; exit 1 if an update exists
+//   tsbridge update --dry-run  → print the npm command, don't run it
+//   tsbridge update --tag next → target a non-`latest` dist-tag
+//
+// Exit codes:
+//   0  → up to date, OR update succeeded, OR --check found nothing
+//   1  → --check found an available update (script-friendly signal)
+//   2  → error (network, npm install failed, git-checkout, …)
 
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 
-const PKG = "@tianshu-ai/local-bridge";
+export const PACKAGE_NAME = "@tianshu-ai/local-bridge";
 const REGISTRY = "https://registry.npmjs.org";
+
+export interface UpdateCmdOpts {
+  /** Just check; don't install. */
+  check?: boolean;
+  /** npm dist-tag to target. Defaults to "latest". */
+  tag?: string;
+  /** Print the command we'd run, but don't run it. */
+  dryRun?: boolean;
+}
 
 /** Installed version, read from this package's own package.json. */
 export function installedVersion(): string {
   try {
     const require = createRequire(import.meta.url);
-    // dist/update.js → ../package.json
     const pkg = require("../package.json") as { version?: string };
     return pkg.version ?? "0.0.0";
   } catch {
@@ -23,47 +37,22 @@ export function installedVersion(): string {
   }
 }
 
-/** Fetch the latest published version + dist-tags from npm. */
-async function fetchLatest(): Promise<string | null> {
+async function fetchDistTag(tag: string): Promise<{ ok: true; version: string } | { ok: false; error: string }> {
   try {
-    const res = await fetch(`${REGISTRY}/${encodeURIComponent(PKG).replace("%40", "@")}/latest`, {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) return null;
+    const url = `${REGISTRY}/${PACKAGE_NAME.replace("/", "%2f")}/${encodeURIComponent(tag)}`;
+    const res = await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     const json = (await res.json()) as { version?: string };
-    return json.version ?? null;
-  } catch {
-    return null;
+    if (!json.version) return { ok: false, error: "no version in registry response" };
+    return { ok: true, version: json.version };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
-/** Semver-ish compare: returns true if `remote` is strictly newer than
- *  `local`. Handles plain x.y.z; prerelease tags compare lexically as a
- *  best-effort tiebreak. */
-function isNewer(remote: string, local: string): boolean {
-  const parse = (v: string) => {
-    const [core, pre] = v.split("-", 2);
-    const nums = core.split(".").map((n) => parseInt(n, 10) || 0);
-    return { nums, pre: pre ?? "" };
-  };
-  const a = parse(remote);
-  const b = parse(local);
-  for (let i = 0; i < 3; i++) {
-    const x = a.nums[i] ?? 0;
-    const y = b.nums[i] ?? 0;
-    if (x !== y) return x > y;
-  }
-  // equal core: a release (no pre) beats a prerelease; else lexical
-  if (a.pre === b.pre) return false;
-  if (!a.pre) return true;
-  if (!b.pre) return false;
-  return a.pre > b.pre;
-}
-
-function runNpmInstall(): Promise<number> {
+function runNpmInstall(target: string): Promise<number> {
   return new Promise((resolve) => {
-    const child = spawn("npm", ["install", "-g", `${PKG}@latest`], {
+    const child = spawn("npm", ["install", "-g", target], {
       stdio: "inherit",
       shell: process.platform === "win32",
     });
@@ -72,36 +61,46 @@ function runNpmInstall(): Promise<number> {
   });
 }
 
-/** Run the update subcommand. `apply` = actually install the new version. */
-export async function runUpdate(apply: boolean): Promise<number> {
-  const local = installedVersion();
-  process.stdout.write(`[tsbridge] installed: v${local}\n`);
-  process.stdout.write(`[tsbridge] checking ${REGISTRY} for a newer ${PKG}…\n`);
-  const latest = await fetchLatest();
-  if (!latest) {
-    process.stderr.write("[tsbridge] could not reach the npm registry.\n");
+/** `tsbridge update [--check] [--tag <name>] [--dry-run]`. */
+export async function runUpdate(opts: UpdateCmdOpts = {}): Promise<number> {
+  const tag = opts.tag ?? "latest";
+  const current = installedVersion();
+  console.log(`Current version: ${current}`);
+
+  const remote = await fetchDistTag(tag);
+  if (!remote.ok) {
+    console.error(`Couldn't reach npm registry: ${remote.error}`);
+    console.error("Check your network / proxy and retry. If you're offline, skip the update.");
+    return 2;
+  }
+  console.log(`Latest on \`${tag}\`: ${remote.version}`);
+
+  if (current === remote.version) {
+    console.log("Already up to date.");
+    return 0;
+  }
+
+  if (opts.check) {
+    console.log(`Update available: ${current} → ${remote.version}. Run \`tsbridge update\` to install.`);
     return 1;
   }
-  if (!isNewer(latest, local)) {
-    process.stdout.write(`[tsbridge] up to date (latest is v${latest}).\n`);
+
+  const target = `${PACKAGE_NAME}@${remote.version}`;
+  const cmd = `npm install -g ${target}`;
+  if (opts.dryRun) {
+    console.log(`Would run: ${cmd}`);
     return 0;
   }
-  process.stdout.write(`[tsbridge] a newer version is available: v${latest}\n`);
-  if (!apply) {
-    process.stdout.write(
-      `[tsbridge] to update, run:\n    npm i -g ${PKG}@latest\n  or:\n    tsbridge update --yes\n`,
-    );
-    return 0;
-  }
-  process.stdout.write(`[tsbridge] updating v${local} → v${latest}…\n`);
-  const code = await runNpmInstall();
+
+  console.log(`Installing ${remote.version}…`);
+  const code = await runNpmInstall(target);
   if (code === 0) {
-    process.stdout.write(`[tsbridge] updated to v${latest}. Restart any running bridge.\n`);
-  } else {
-    process.stderr.write(
-      `[tsbridge] update failed (npm exit ${code}). Try manually: npm i -g ${PKG}@latest\n` +
-        `  (a permission error usually means you need sudo, or a Node version manager's global dir.)\n`,
-    );
+    console.log(`Updated to ${remote.version}. Restart any running bridge (tsbridge --server …).`);
+    return 0;
   }
-  return code;
+  console.error(
+    `npm install failed (exit ${code}). Try manually: ${cmd}\n` +
+      "  A permission error usually means you need sudo, or a Node version manager's global dir.",
+  );
+  return 2;
 }
