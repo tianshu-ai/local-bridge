@@ -1,0 +1,32 @@
+{
+  "name": "@tianshu-ai/bridge",
+  "version": "0.1.0",
+  "description": "Local bridge for tianshu — dial into a tianshu server over WebSocket and expose your machine's tools (browser, files, shell) to the agent via reverse-MCP.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "tianshu-bridge": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "playwright": "^1.56.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.5.12",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
