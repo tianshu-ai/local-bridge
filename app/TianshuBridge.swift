@@ -129,12 +129,15 @@ final class Bridge {
 // ─── menu-bar controller ─────────────────────────────────────────────
 
 final class AppController: NSObject, NSApplicationDelegate {
-    let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    // Created in applicationDidFinishLaunching (not at init) so the app
+    // is fully up before we claim a status-bar slot.
+    var statusItem: NSStatusItem!
     let bridge = Bridge()
     var cfg = Config.load()
     var configWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         updateIcon()
         bridge.onStateChange = { [weak self] in
             self?.updateIcon()
@@ -144,13 +147,19 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     func updateIcon() {
-        if let btn = statusItem.button {
-            let on = bridge.isRunning
-            let name = on ? "bolt.horizontal.circle.fill" : "bolt.horizontal.circle"
-            btn.image = NSImage(systemSymbolName: name, accessibilityDescription: "Tianshu Bridge")
-            btn.image?.isTemplate = true
-            btn.toolTip = on ? "Tianshu Bridge: connected" : "Tianshu Bridge: stopped"
+        guard let btn = statusItem.button else { return }
+        let on = bridge.isRunning
+        let name = on ? "bolt.horizontal.circle.fill" : "bolt.horizontal.circle"
+        if let img = NSImage(systemSymbolName: name, accessibilityDescription: "Tianshu Bridge") {
+            img.isTemplate = true
+            btn.image = img
+            btn.title = ""
+        } else {
+            // SF Symbol unavailable → always-visible text fallback.
+            btn.image = nil
+            btn.title = on ? "⚡●" : "⚡"
         }
+        btn.toolTip = on ? "Tianshu Bridge: connected" : "Tianshu Bridge: stopped"
     }
 
     func rebuildMenu() {

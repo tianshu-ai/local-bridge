@@ -67,6 +67,8 @@ echo "→ Compiling Swift (menu-bar app) …"
 swiftc -O -o "$MACOS_DIR/TianshuBridge" "$SWIFT_SRC" \
   -framework AppKit -framework Foundation
 
+# Clear quarantine so `open` doesn't silently refuse the new bundle.
+xattr -dr com.apple.quarantine "$APP_DIR" >/dev/null 2>&1 || true
 # Ad-hoc code sign so Gatekeeper lets a locally-built app run.
 codesign --force --deep --sign - "$APP_DIR" >/dev/null 2>&1 || \
   echo "note: ad-hoc codesign failed (app still runs; right-click → Open on first launch)."

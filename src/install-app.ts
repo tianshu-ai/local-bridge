@@ -88,6 +88,9 @@ export function installApp(opts: InstallAppOpts = {}): number {
     return 1;
   }
 
+  // Clear any quarantine attribute so `open` / Gatekeeper doesn't
+  // silently refuse to launch the freshly-written bundle.
+  spawnSync("xattr", ["-dr", "com.apple.quarantine", appDir], { stdio: "ignore" });
   // Ad-hoc sign so Gatekeeper allows a locally-built app.
   spawnSync("codesign", ["--force", "--deep", "--sign", "-", appDir], { stdio: "ignore" });
 
