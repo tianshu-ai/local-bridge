@@ -46,6 +46,14 @@ tsbridge --server ws://localhost:3110/ws
 
 > The `tsbridge` and `tianshu-local-bridge` commands are equivalent.
 
+### Keeping it updated
+
+```bash
+tsbridge update         # check npm for a newer version
+tsbridge update --yes   # check and self-update (npm i -g …@latest)
+tsbridge version        # print the installed version
+```
+
 ### Flags
 
 | flag | meaning |
