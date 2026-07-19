@@ -20,7 +20,8 @@
 //                          stealth = cloakbrowser-mcp (CloakBrowser stealth
 //                                    Chromium, full Playwright-MCP toolset,
 //                                    passes bot detection; ~200MB first run)
-//   --headless           run the browser without a window (own engine)
+//   --headless           run the browser without a window (own + stealth;
+//                          default is headful — a window you can watch)
 //   --cdp <url>          own: connect to a running Chrome's CDP endpoint
 //                        (default probe http://127.0.0.1:9222; "off" to skip)
 //   --chrome-channel     own: which installed browser to launch (chrome, msedge, …)
@@ -96,10 +97,13 @@ async function main(): Promise<void> {
       // Full Playwright-MCP toolset pointed at CloakBrowser stealth
       // Chromium. Spawned as a child MCP server over stdio.
       try {
+        // cloakbrowser-mcp reads PLAYWRIGHT_MCP_HEADLESS (default true =
+        // headless). Set it explicitly from our headful/--headless flag
+        // so the window shows when the user wants it.
         const stealthTools = await connectMcpChild({
           command: "npx",
           args: ["-y", "cloakbrowser-mcp@latest"],
-          env: headful ? {} : { PWMCP_HEADLESS: "1" },
+          env: { PLAYWRIGHT_MCP_HEADLESS: headful ? "false" : "true" },
           log: (m) => console.log(`[local-bridge] ${m}`),
         });
         tools.push(...stealthTools);
