@@ -14,6 +14,9 @@
 //   --device <id>      stable device id (default: hostname)
 //   --label <name>     human label shown in the panel (default: device id)
 //   --no-browser         don't expose browser tools
+//   --no-shell           don't expose the shell exec + file sync tools
+//   --shell-root <dir>   fixed root dir that jails exec + sync
+//                          (default: ~/.tianshu_shell)
 //   --browser-engine     own | stealth (default: own)
 //                          own     = your system/running Chrome (no download,
 //                                    real cookies+fingerprint)
@@ -36,6 +39,7 @@
 import os from "node:os";
 import { BridgeConnection } from "./connection.js";
 import { connectMcpChild, bridgeOutputDir } from "./mcp-child.js";
+import { localTools, defaultShellRoot } from "./local-tools.js";
 import { runUpdate, installedVersion } from "./update.js";
 import { installApp } from "./install-app.js";
 import type { LocalTool } from "./protocol.js";
@@ -117,7 +121,9 @@ async function main(): Promise<void> {
   const userDataDir = typeof args["user-data-dir"] === "string" ? (args["user-data-dir"] as string) : "";
 
   const browserOn = args["no-browser"] !== true;
+  const shellOn = args["no-shell"] !== true;
   const engine = args["browser-engine"] === "stealth" ? "stealth" : "own";
+  const shellRoot = typeof args["shell-root"] === "string" ? (args["shell-root"] as string) : defaultShellRoot();
   const tools: LocalTool[] = [];
   if (browserOn) {
     if (engine === "stealth") {
@@ -176,9 +182,18 @@ async function main(): Promise<void> {
     }
   }
 
+  // Native local tools: shell exec + file sync. Run directly on this
+  // machine (no child MCP), mirroring the openshell plugin's
+  // exec / sync_up / sync_down surface.
+  if (shellOn) {
+    const log = (m: string) => console.log(`[local-bridge] ${m}`);
+    tools.push(...localTools({ root: shellRoot, log }));
+    log(`shell: exec + sync_up/sync_down enabled, jailed to ${shellRoot}`);
+  }
+
   if (tools.length === 0) {
     console.error(
-      "[local-bridge] no tools enabled — nothing to expose. Remove --no-browser (or enable a capability) and try again.",
+      "[local-bridge] no tools enabled — nothing to expose. Remove --no-browser / --no-shell (or enable a capability) and try again.",
     );
     process.exit(2);
   }
@@ -200,7 +215,7 @@ async function main(): Promise<void> {
         ? `own: connect(${cdpUrl}) or ${channel}`
         : `own: ${channel}`;
   console.log(
-    `[local-bridge] starting — device="${deviceId}", ${tools.length} tools, browser=${browserDesc}`,
+    `[local-bridge] starting — device="${deviceId}", ${tools.length} tools, browser=${browserDesc}, shell=${shellOn ? "on" : "off"}`,
   );
   conn.start();
 

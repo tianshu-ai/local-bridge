@@ -86,6 +86,8 @@ tsbridge version           # print the installed version
 | `--device <id>` | stable device id (default: hostname) |
 | `--label <name>` | human label shown in the panel |
 | `--no-browser` | don't expose browser tools |
+| `--no-shell` | don't expose the shell exec + file sync tools |
+| `--shell-root <dir>` | fixed root dir that jails `exec` + `sync_up`/`sync_down` (default: `~/.tianshu_shell`) |
 | `--headless` | run the browser without a window (default: headful) |
 | `--cdp <url>` | connect to an already-running Chrome's CDP endpoint (default probe `http://127.0.0.1:9222`; `off` to skip) |
 | `--chrome-channel <ch>` | which installed browser to launch: `chrome` (default), `msedge`, … |
@@ -118,6 +120,40 @@ the underlying browser differs:
   fingerprint, no Chromium download.
 - **stealth** — `cloakbrowser-mcp`: the same toolset on CloakBrowser
   stealth Chromium (source-level anti-bot-detection patches).
+
+### Shell + file sync
+
+Unless `--no-shell` is passed, the bridge also exposes three **native**
+tools that run directly on your machine. Their names, parameters and
+result shapes mirror tianshu's server-side `openshell` plugin, so an
+agent written against openshell works unchanged against a bridge device.
+
+**All three are jailed to a single fixed root directory**
+(`~/.tianshu_shell` by default, override with `--shell-root`). `exec`'s
+cwd + `workdir`, `sync_up`'s read base, and `sync_down`'s write dest all
+resolve *inside* that root; any path that escapes it is rejected.
+
+- **`exec`** — run a shell command via `bash -c`, cwd inside the root.
+  Params: `command`, optional `workdir` (relative to the root, defaults
+  to the root itself), optional `timeout_ms` (default 300s, cap 1800s).
+  Output is truncated at 200 lines / 8000 bytes per stream. Returns
+  `{ ok, exit_code, stdout, stderr, truncated, duration_ms, timed_out }`.
+- **`sync_up`** — read files/dirs under the root and return their bytes
+  (base64) *up* to the agent. Params: `paths[]` (relative to the root,
+  directories walked recursively). Per-file cap 8 MiB, ≤500 files/call.
+- **`sync_down`** — receive files (base64) from the agent and write them
+  *down* under the root. Params: `files: [{ path, base64 }]`. Parent
+  dirs are created; existing files overwritten.
+
+Transport is base64-in-args over the existing reverse-MCP `tools/call`
+channel — no protocol changes.
+
+> **Security:** `exec` runs commands with your user's permissions, but
+> is confined to the `--shell-root` directory (default `~/.tianshu_shell`)
+> — the agent can't `cd` or read/write outside it via these tools. It is
+> not a kernel sandbox (a determined command could still reach the wider
+> fs), so only connect a bridge to a tianshu server you trust; pass
+> `--no-shell` to expose the browser only.
 
 ## Protocol
 
