@@ -1,6 +1,6 @@
 {
   "name": "@tianshu-ai/local-bridge",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Local bridge for tianshu — dial into a tianshu server over WebSocket and expose your machine's tools (browser, files, shell) to the agent via reverse-MCP.",
   "license": "Apache-2.0",
   "repository": {

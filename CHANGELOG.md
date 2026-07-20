@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/tianshu-ai/local-bridge/compare/v0.5.0...v0.6.0) (2026-07-20)
+
+
+### Features
+
+* native shell exec + sync_up/sync_down tools (openshell parity) ([#7](https://github.com/tianshu-ai/local-bridge/issues/7)) ([90d5d4b](https://github.com/tianshu-ai/local-bridge/commit/90d5d4b0521d9576642cea4c442c25dc78de189d))
+
 ## [0.5.0](https://github.com/tianshu-ai/local-bridge/compare/v0.4.1...v0.5.0) (2026-07-19)
 
 
