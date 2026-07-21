@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/tianshu-ai/local-bridge/compare/v0.6.0...v0.6.1) (2026-07-21)
+
+
+### Bug Fixes
+
+* make shell opt-in (--shell), off by default ([#9](https://github.com/tianshu-ai/local-bridge/issues/9)) ([5e9b854](https://github.com/tianshu-ai/local-bridge/commit/5e9b854774385cdca580133302272904a9ce3426))
+
 ## [0.6.0](https://github.com/tianshu-ai/local-bridge/compare/v0.5.0...v0.6.0) (2026-07-20)
 
 
