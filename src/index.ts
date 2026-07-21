@@ -14,8 +14,10 @@
 //   --device <id>      stable device id (default: hostname)
 //   --label <name>     human label shown in the panel (default: device id)
 //   --no-browser         don't expose browser tools
-//   --no-shell           don't expose the shell exec + file sync tools
+//   --shell              expose the shell exec + file sync tools
+//                          (OFF by default; runs commands on your machine)
 //   --shell-root <dir>   fixed root dir that jails exec + sync
+//                          (default: ~/.tianshu_shell)
 //                          (default: ~/.tianshu_shell)
 //   --browser-engine     own | stealth (default: own)
 //                          own     = your system/running Chrome (no download,
@@ -121,7 +123,11 @@ async function main(): Promise<void> {
   const userDataDir = typeof args["user-data-dir"] === "string" ? (args["user-data-dir"] as string) : "";
 
   const browserOn = args["no-browser"] !== true;
-  const shellOn = args["no-shell"] !== true;
+  // Shell (exec + file sync) is OFF by default — it runs arbitrary
+  // commands on the user's own machine, so it must be opted into
+  // explicitly with --shell. (--no-shell is still accepted as a
+  // harmless no-op for back-compat with older invocations.)
+  const shellOn = args["shell"] === true && args["no-shell"] !== true;
   const engine = args["browser-engine"] === "stealth" ? "stealth" : "own";
   const shellRoot = typeof args["shell-root"] === "string" ? (args["shell-root"] as string) : defaultShellRoot();
   const tools: LocalTool[] = [];
@@ -193,7 +199,7 @@ async function main(): Promise<void> {
 
   if (tools.length === 0) {
     console.error(
-      "[local-bridge] no tools enabled — nothing to expose. Remove --no-browser / --no-shell (or enable a capability) and try again.",
+      "[local-bridge] no tools enabled — nothing to expose. Remove --no-browser, or add --shell, and try again.",
     );
     process.exit(2);
   }
