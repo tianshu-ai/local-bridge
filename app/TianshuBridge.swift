@@ -16,8 +16,9 @@ import Foundation
 struct Config: Codable {
     var server: String = "ws://localhost:3110/ws"
     var token: String = ""
-    var engine: String = "own"        // "own" | "stealth"
-    var headless: Bool = false
+    var browser: Bool = true           // expose browser tools (on by default)
+    var engine: String = "own"        // "own" | "stealth" (browser sub-option)
+    var headless: Bool = false         // browser sub-option
     var shell: Bool = false            // expose exec + file sync (opt-in)
     var device: String = ""            // empty → hostname
 
@@ -91,8 +92,12 @@ final class Bridge {
         }
         var args = ["--server", cfg.server]
         if !cfg.token.isEmpty { args += ["--token", cfg.token] }
-        if cfg.engine == "stealth" { args += ["--browser-engine", "stealth"] }
-        if cfg.headless { args += ["--headless"] }
+        if cfg.browser {
+            if cfg.engine == "stealth" { args += ["--browser-engine", "stealth"] }
+            if cfg.headless { args += ["--headless"] }
+        } else {
+            args += ["--no-browser"]
+        }
         if cfg.shell { args += ["--shell"] }
         if !cfg.device.isEmpty { args += ["--device", cfg.device] }
 
@@ -176,9 +181,9 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.addItem(statusMI)
         menu.addItem(NSMenuItem(title: "Server: \(cfg.server)", action: nil, keyEquivalent: ""))
         let eng = cfg.engine == "stealth" ? "stealth" : "own"
+        let browserDesc = cfg.browser ? "\(eng)\(cfg.headless ? " (headless)" : "")" : "off"
+        menu.addItem(NSMenuItem(title: "Browser: \(browserDesc)", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Shell: \(cfg.shell ? "on" : "off")", action: nil, keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Browser: \(eng)\(cfg.headless ? " (headless)" : "")",
-                                action: nil, keyEquivalent: ""))
         menu.addItem(.separator())
 
         if bridge.isRunning {
@@ -218,6 +223,7 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     private var serverField: NSTextField!
     private var tokenField: NSTextField!
+    private var browserCheck: NSButton!
     private var enginePopup: NSPopUpButton!
     private var headlessCheck: NSButton!
     private var shellCheck: NSButton!
@@ -247,25 +253,41 @@ final class AppController: NSObject, NSApplicationDelegate {
         tokenField = NSTextField(frame: NSRect(x: 110, y: 170, width: 250, height: 24))
         tokenField.stringValue = cfg.token; v.addSubview(tokenField)
 
-        v.addSubview(label("Browser", 134))
-        enginePopup = NSPopUpButton(frame: NSRect(x: 110, y: 130, width: 250, height: 26))
+        // ── Capabilities (Browser + Shell are sibling optional tools) ──
+        let capLabel = NSTextField(labelWithString: "Capabilities")
+        capLabel.frame = NSRect(x: 16, y: 138, width: 200, height: 18)
+        capLabel.font = NSFont.boldSystemFont(ofSize: 12)
+        v.addSubview(capLabel)
+
+        // Browser (top-level toggle) + its sub-options (engine, headless).
+        browserCheck = NSButton(checkboxWithTitle: "Browser (control a local browser)",
+                                target: self, action: #selector(toggleBrowserOptions))
+        browserCheck.frame = NSRect(x: 24, y: 116, width: 300, height: 20)
+        browserCheck.state = cfg.browser ? .on : .off
+        v.addSubview(browserCheck)
+
+        enginePopup = NSPopUpButton(frame: NSRect(x: 44, y: 88, width: 250, height: 26))
         enginePopup.addItems(withTitles: ["own (your Chrome)", "stealth (CloakBrowser)"])
         enginePopup.selectItem(at: cfg.engine == "stealth" ? 1 : 0)
         v.addSubview(enginePopup)
 
         headlessCheck = NSButton(checkboxWithTitle: "Headless (no window)", target: nil, action: nil)
-        headlessCheck.frame = NSRect(x: 110, y: 98, width: 250, height: 20)
+        headlessCheck.frame = NSRect(x: 44, y: 66, width: 250, height: 20)
         headlessCheck.state = cfg.headless ? .on : .off
         v.addSubview(headlessCheck)
 
+        // Shell (sibling top-level toggle).
         shellCheck = NSButton(checkboxWithTitle: "Shell (run commands + sync files)", target: nil, action: nil)
-        shellCheck.frame = NSRect(x: 110, y: 70, width: 260, height: 20)
+        shellCheck.frame = NSRect(x: 24, y: 40, width: 300, height: 20)
         shellCheck.state = cfg.shell ? .on : .off
         shellCheck.toolTip = "Exposes exec + file sync on your machine, jailed to ~/.tianshu_shell. Off by default; enable only for a server you trust."
         v.addSubview(shellCheck)
 
+        // Grey out browser sub-options when browser is off.
+        updateBrowserOptionsEnabled()
+
         let save = NSButton(title: "Save & Restart", target: self, action: #selector(saveSettings))
-        save.frame = NSRect(x: 200, y: 18, width: 160, height: 32)
+        save.frame = NSRect(x: 200, y: 8, width: 160, height: 30)
         save.bezelStyle = .rounded
         v.addSubview(save)
         return v
@@ -275,6 +297,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         cfg.server = serverField.stringValue.trimmingCharacters(in: .whitespaces)
         cfg.token = tokenField.stringValue.trimmingCharacters(in: .whitespaces)
         cfg.engine = enginePopup.indexOfSelectedItem == 1 ? "stealth" : "own"
+        cfg.browser = browserCheck.state == .on
         cfg.headless = headlessCheck.state == .on
         cfg.shell = shellCheck.state == .on
         cfg.save()
@@ -307,6 +330,18 @@ final class AppController: NSObject, NSApplicationDelegate {
         if let e = params["engine"] { enginePopup.selectItem(at: e == "stealth" ? 1 : 0) }
         if let h = params["headless"] { headlessCheck.state = (h == "1" || h == "true") ? .on : .off }
         if let s = params["shell"] { shellCheck.state = (s == "1" || s == "true") ? .on : .off }
+        if let b = params["browser"] { browserCheck.state = (b == "1" || b == "true") ? .on : .off }
+        updateBrowserOptionsEnabled()
+    }
+
+    // Enable/disable the browser sub-options (engine + headless) to
+    // reflect the top-level Browser toggle — they're meaningless when
+    // browser is off.
+    @objc func toggleBrowserOptions() { updateBrowserOptionsEnabled() }
+    private func updateBrowserOptionsEnabled() {
+        let on = browserCheck?.state == .on
+        enginePopup?.isEnabled = on
+        headlessCheck?.isEnabled = on
     }
 
     private func alert(_ title: String, _ body: String) {
