@@ -18,6 +18,7 @@ struct Config: Codable {
     var token: String = ""
     var engine: String = "own"        // "own" | "stealth"
     var headless: Bool = false
+    var shell: Bool = false            // expose exec + file sync (opt-in)
     var device: String = ""            // empty → hostname
 
     static var path: URL {
@@ -92,6 +93,7 @@ final class Bridge {
         if !cfg.token.isEmpty { args += ["--token", cfg.token] }
         if cfg.engine == "stealth" { args += ["--browser-engine", "stealth"] }
         if cfg.headless { args += ["--headless"] }
+        if cfg.shell { args += ["--shell"] }
         if !cfg.device.isEmpty { args += ["--device", cfg.device] }
 
         let p = Process()
@@ -174,6 +176,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.addItem(statusMI)
         menu.addItem(NSMenuItem(title: "Server: \(cfg.server)", action: nil, keyEquivalent: ""))
         let eng = cfg.engine == "stealth" ? "stealth" : "own"
+        menu.addItem(NSMenuItem(title: "Shell: \(cfg.shell ? "on" : "off")", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Browser: \(eng)\(cfg.headless ? " (headless)" : "")",
                                 action: nil, keyEquivalent: ""))
         menu.addItem(.separator())
@@ -217,6 +220,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var tokenField: NSTextField!
     private var enginePopup: NSPopUpButton!
     private var headlessCheck: NSButton!
+    private var shellCheck: NSButton!
 
     private func makeSettingsView() -> NSView {
         let v = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 300))
@@ -229,7 +233,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         paste.frame = NSRect(x: 16, y: 258, width: 200, height: 28)
         paste.bezelStyle = .rounded
         v.addSubview(paste)
-        let hint = NSTextField(labelWithString: "(copies server + token + browser settings)")
+        let hint = NSTextField(labelWithString: "(copies server + token + browser + shell settings)")
         hint.frame = NSRect(x: 16, y: 238, width: 348, height: 16)
         hint.font = NSFont.systemFont(ofSize: 10)
         hint.textColor = .secondaryLabelColor
@@ -254,8 +258,14 @@ final class AppController: NSObject, NSApplicationDelegate {
         headlessCheck.state = cfg.headless ? .on : .off
         v.addSubview(headlessCheck)
 
+        shellCheck = NSButton(checkboxWithTitle: "Shell (run commands + sync files)", target: nil, action: nil)
+        shellCheck.frame = NSRect(x: 110, y: 70, width: 260, height: 20)
+        shellCheck.state = cfg.shell ? .on : .off
+        shellCheck.toolTip = "Exposes exec + file sync on your machine, jailed to ~/.tianshu_shell. Off by default; enable only for a server you trust."
+        v.addSubview(shellCheck)
+
         let save = NSButton(title: "Save & Restart", target: self, action: #selector(saveSettings))
-        save.frame = NSRect(x: 200, y: 20, width: 160, height: 32)
+        save.frame = NSRect(x: 200, y: 18, width: 160, height: 32)
         save.bezelStyle = .rounded
         v.addSubview(save)
         return v
@@ -266,6 +276,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         cfg.token = tokenField.stringValue.trimmingCharacters(in: .whitespaces)
         cfg.engine = enginePopup.indexOfSelectedItem == 1 ? "stealth" : "own"
         cfg.headless = headlessCheck.state == .on
+        cfg.shell = shellCheck.state == .on
         cfg.save()
         configWindow?.close()
         rebuildMenu()
@@ -295,6 +306,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         if let t = params["token"] { tokenField.stringValue = t }
         if let e = params["engine"] { enginePopup.selectItem(at: e == "stealth" ? 1 : 0) }
         if let h = params["headless"] { headlessCheck.state = (h == "1" || h == "true") ? .on : .off }
+        if let s = params["shell"] { shellCheck.state = (s == "1" || s == "true") ? .on : .off }
     }
 
     private func alert(_ title: String, _ body: String) {
