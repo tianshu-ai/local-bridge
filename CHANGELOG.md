@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/tianshu-ai/local-bridge/compare/v0.6.2...v0.7.0) (2026-07-21)
+
+
+### Features
+
+* Browser as a top-level optional capability in the app ([#13](https://github.com/tianshu-ai/local-bridge/issues/13)) ([13f2975](https://github.com/tianshu-ai/local-bridge/commit/13f2975b1547418dafbe7f0099fa86f73b6d19f5))
+
 ## [0.6.2](https://github.com/tianshu-ai/local-bridge/compare/v0.6.1...v0.6.2) (2026-07-21)
 
 
