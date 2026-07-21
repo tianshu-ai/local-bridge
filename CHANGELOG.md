@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/tianshu-ai/local-bridge/compare/v0.6.1...v0.6.2) (2026-07-21)
+
+
+### Bug Fixes
+
+* add Shell toggle to the menu-bar app settings ([#11](https://github.com/tianshu-ai/local-bridge/issues/11)) ([041ab5f](https://github.com/tianshu-ai/local-bridge/commit/041ab5f03d1e223de45f00743007d6043b74f072))
+
 ## [0.6.1](https://github.com/tianshu-ai/local-bridge/compare/v0.6.0...v0.6.1) (2026-07-21)
 
 
