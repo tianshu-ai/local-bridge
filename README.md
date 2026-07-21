@@ -86,7 +86,7 @@ tsbridge version           # print the installed version
 | `--device <id>` | stable device id (default: hostname) |
 | `--label <name>` | human label shown in the panel |
 | `--no-browser` | don't expose browser tools |
-| `--no-shell` | don't expose the shell exec + file sync tools |
+| `--shell` | expose the shell exec + file sync tools (OFF by default) |
 | `--shell-root <dir>` | fixed root dir that jails `exec` + `sync_up`/`sync_down` (default: `~/.tianshu_shell`) |
 | `--headless` | run the browser without a window (default: headful) |
 | `--cdp <url>` | connect to an already-running Chrome's CDP endpoint (default probe `http://127.0.0.1:9222`; `off` to skip) |
@@ -123,7 +123,7 @@ the underlying browser differs:
 
 ### Shell + file sync
 
-Unless `--no-shell` is passed, the bridge also exposes three **native**
+When `--shell` is passed, the bridge also exposes three **native**
 tools that run directly on your machine. Their names, parameters and
 result shapes mirror tianshu's server-side `openshell` plugin, so an
 agent written against openshell works unchanged against a bridge device.
@@ -152,8 +152,9 @@ channel — no protocol changes.
 > is confined to the `--shell-root` directory (default `~/.tianshu_shell`)
 > — the agent can't `cd` or read/write outside it via these tools. It is
 > not a kernel sandbox (a determined command could still reach the wider
-> fs), so only connect a bridge to a tianshu server you trust; pass
-> `--no-shell` to expose the browser only.
+> fs), so only connect a bridge to a tianshu server you trust. Because of
+> this, shell is **off by default** — add `--shell` only when you want the
+> agent to run commands + move files on your machine.
 
 ## Protocol
 
