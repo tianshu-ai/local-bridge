@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.4](https://github.com/tianshu-ai/local-bridge/compare/v0.7.3...v0.7.4) (2026-07-22)
+
+
+### Chores
+
+* release 0.7.4 ([99b38b7](https://github.com/tianshu-ai/local-bridge/commit/99b38b7378e6184fc999d7e4539718154c9e021f))
+
 ## [0.7.3](https://github.com/tianshu-ai/local-bridge/compare/v0.7.2...v0.7.3) (2026-07-22)
 
 
