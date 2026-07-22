@@ -19,12 +19,33 @@ export interface BridgeOptions {
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 
+// Heartbeat: proactively detect "half-open" / silently-dead sockets
+// that never fire a `close` event (Wi-Fi switch, laptop sleep, NAT
+// timeout, server process vanished without a TCP FIN). We send a WS
+// ping every HEARTBEAT_MS; the server auto-replies with pong (RFC
+// default in the `ws` lib). If we go DEAD_AFTER_MS without ANY sign of
+// life (no pong, no message, nothing buffered to send, no tool call in
+// flight) we consider the socket dead and terminate it — that fires
+// `close`, which runs the normal reconnect-with-backoff path.
+const HEARTBEAT_MS = 25_000;
+// A socket is declared dead after ~2.5 missed heartbeats of total
+// silence. Kept comfortably above HEARTBEAT_MS so one slow round-trip
+// doesn't nuke a healthy link.
+const DEAD_AFTER_MS = 65_000;
+
 export class BridgeConnection {
   private ws: WebSocket | null = null;
   private closed = false;
   private attempt = 0;
   private readonly toolsByName = new Map<string, LocalTool>();
   private readonly log: (m: string) => void;
+  // Liveness tracking. `lastActivityAt` bumps on any inbound frame,
+  // pong, or successful send. `inFlight` counts tool calls currently
+  // executing — a busy connection is by definition alive + must not be
+  // torn down mid-task.
+  private lastActivityAt = 0;
+  private inFlight = 0;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(private readonly opts: BridgeOptions) {
     this.log = opts.log ?? ((m) => console.log(m));
@@ -38,6 +59,7 @@ export class BridgeConnection {
 
   stop(): void {
     this.closed = true;
+    this.stopHeartbeat();
     try {
       this.ws?.send(JSON.stringify({ type: MSG.unregister }));
     } catch {
@@ -45,6 +67,54 @@ export class BridgeConnection {
     }
     this.ws?.close();
     this.ws = null;
+  }
+
+  /** Is this connection currently doing work? True while one or more
+   *  tool calls are executing, or while there are bytes still queued
+   *  to send (e.g. a large tool result mid-flight). Used by the
+   *  heartbeat so we never tear down a busy socket. */
+  isBusy(): boolean {
+    return this.inFlight > 0 || (this.ws?.bufferedAmount ?? 0) > 0;
+  }
+
+  // ── heartbeat ────────────────────────────────────────────────
+
+  private startHeartbeat(ws: WebSocket): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (this.ws !== ws || ws.readyState !== WebSocket.OPEN) return;
+      // A busy or recently-active socket is alive by definition —
+      // don't judge it dead, just keep pinging.
+      const silentFor = Date.now() - this.lastActivityAt;
+      if (silentFor >= DEAD_AFTER_MS && !this.isBusy()) {
+        this.log(
+          `no response for ${Math.round(silentFor / 1000)}s — assuming dead link, forcing reconnect`,
+        );
+        // terminate() (not close()) drops a half-open socket
+        // immediately; the 'close' handler then runs reconnect.
+        try {
+          ws.terminate();
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+      // Otherwise probe: server auto-pongs, bumping lastActivityAt.
+      try {
+        ws.ping();
+      } catch {
+        /* ignore — a failed ping surfaces via error/close */
+      }
+    }, HEARTBEAT_MS);
+    // Don't let the heartbeat keep the process alive on its own.
+    this.heartbeatTimer.unref?.();
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   private connect(): void {
@@ -55,6 +125,7 @@ export class BridgeConnection {
 
     ws.on("open", () => {
       this.attempt = 0;
+      this.lastActivityAt = Date.now();
       this.log(`connected to ${this.opts.server}`);
       const reg: RegisterMsg = {
         type: MSG.register,
@@ -63,9 +134,16 @@ export class BridgeConnection {
         tools: this.opts.tools.map((t) => t.descriptor),
       };
       ws.send(JSON.stringify(reg));
+      this.startHeartbeat(ws);
+    });
+
+    // Any pong is a sign of life. (Server auto-pongs our pings.)
+    ws.on("pong", () => {
+      this.lastActivityAt = Date.now();
     });
 
     ws.on("message", (raw) => {
+      this.lastActivityAt = Date.now();
       let msg: { type?: string } & Record<string, unknown>;
       try {
         msg = JSON.parse(raw.toString());
@@ -90,6 +168,7 @@ export class BridgeConnection {
     });
 
     ws.on("close", () => {
+      this.stopHeartbeat();
       this.ws = null;
       if (this.closed) return;
       const delay = Math.min(RECONNECT_BASE_MS * 2 ** this.attempt, RECONNECT_MAX_MS);
@@ -137,6 +216,10 @@ export class BridgeConnection {
       this.send({ type: MSG.response, id: req.id, error: { code: -32602, message: `unknown tool: ${params.name}` } });
       return;
     }
+    // Mark the connection busy for the duration of the tool call so
+    // the heartbeat never tears it down mid-task (a slow tool =
+    // silence on the wire, but the link is fine).
+    this.inFlight += 1;
     try {
       const result = await tool.run(params.arguments ?? {});
       this.send({ type: MSG.response, id: req.id, result });
@@ -146,6 +229,9 @@ export class BridgeConnection {
         id: req.id,
         result: textResult(`tool "${params.name}" failed: ${err instanceof Error ? err.message : String(err)}`, true),
       });
+    } finally {
+      this.inFlight = Math.max(0, this.inFlight - 1);
+      this.lastActivityAt = Date.now();
     }
   }
 }
