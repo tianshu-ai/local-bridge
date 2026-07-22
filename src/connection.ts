@@ -48,6 +48,9 @@ export class BridgeConnection {
   private lastActivityAt = 0;
   private inFlight = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  // Only log the 'registered device' line on the FIRST ack of a
+  // connection; heartbeat re-registers ack every ~20s and would spam it.
+  private announcedRegistration = false;
 
   constructor(private readonly opts: BridgeOptions) {
     this.log = opts.log ?? ((m) => console.log(m));
@@ -131,11 +134,9 @@ export class BridgeConnection {
       }
       // Otherwise re-assert our registration so the server's tool
       // catalogue stays current (and recovers after a restart).
+      // No log on success — this fires every heartbeat and is pure noise.
       try {
         this.sendRegister(ws);
-        this.log(
-          `heartbeat: re-register (silent ${Math.round(silentFor / 1000)}s, busy=${this.isBusy()})`,
-        );
       } catch (err) {
         // Send failed → socket is broken; force reconnect now rather
         // than waiting out the silence deadline.
@@ -192,7 +193,10 @@ export class BridgeConnection {
       switch (msg.type) {
         case MSG.registered:
           if ((msg as { ok?: boolean }).ok) {
-            this.log(`registered device "${this.opts.deviceId}" (${this.toolsByName.size} tools)`);
+            if (!this.announcedRegistration) {
+              this.announcedRegistration = true;
+              this.log(`registered device "${this.opts.deviceId}" (${this.toolsByName.size} tools)`);
+            }
           } else {
             this.log(`register rejected: ${(msg as { error?: string }).error ?? "unknown"}`);
           }
@@ -209,6 +213,8 @@ export class BridgeConnection {
     ws.on("close", (code, reason) => {
       this.stopHeartbeat();
       this.ws = null;
+      // Re-announce the 'registered device' line on the next reconnect.
+      this.announcedRegistration = false;
       const why = `code=${code}${reason?.length ? ` reason=${reason.toString()}` : ""}`;
       if (this.closed) {
         this.log(`socket closed after stop (${why})`);
