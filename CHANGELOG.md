@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/tianshu-ai/local-bridge/compare/v0.7.1...v0.7.2) (2026-07-22)
+
+
+### Bug Fixes
+
+* faster reconnect + diagnostic logging for drops ([#17](https://github.com/tianshu-ai/local-bridge/issues/17)) ([83f97eb](https://github.com/tianshu-ai/local-bridge/commit/83f97ebf0cf9e67981f7398be19567cd9319125f))
+
 ## [0.7.1](https://github.com/tianshu-ai/local-bridge/compare/v0.7.0...v0.7.1) (2026-07-22)
 
 
