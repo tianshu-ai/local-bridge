@@ -17,7 +17,10 @@ export interface BridgeOptions {
 }
 
 const RECONNECT_BASE_MS = 1000;
-const RECONNECT_MAX_MS = 30_000;
+// Capped low so a server restart (down for a few seconds) reconnects
+// promptly instead of getting stuck on a long backoff. The first
+// retry after a drop is immediate (see the close handler).
+const RECONNECT_MAX_MS = 10_000;
 
 // Heartbeat: proactively detect "half-open" / silently-dead sockets
 // that never fire a `close` event (Wi-Fi switch, laptop sleep, NAT
@@ -102,8 +105,18 @@ export class BridgeConnection {
       // Otherwise probe: server auto-pongs, bumping lastActivityAt.
       try {
         ws.ping();
-      } catch {
-        /* ignore — a failed ping surfaces via error/close */
+        this.log(`heartbeat: ping (silent ${Math.round(silentFor / 1000)}s, busy=${this.isBusy()})`);
+      } catch (err) {
+        // A failed ping means the socket is already broken; force it
+        // through the close/reconnect path rather than waiting.
+        this.log(
+          `heartbeat: ping failed (${err instanceof Error ? err.message : String(err)}), terminating`,
+        );
+        try {
+          ws.terminate();
+        } catch {
+          /* ignore */
+        }
       }
     }, HEARTBEAT_MS);
     // Don't let the heartbeat keep the process alive on its own.
@@ -126,7 +139,9 @@ export class BridgeConnection {
     ws.on("open", () => {
       this.attempt = 0;
       this.lastActivityAt = Date.now();
-      this.log(`connected to ${this.opts.server}`);
+      this.log(
+        `connected to ${this.opts.server} (heartbeat ${HEARTBEAT_MS / 1000}s, dead-after ${DEAD_AFTER_MS / 1000}s)`,
+      );
       const reg: RegisterMsg = {
         type: MSG.register,
         deviceId: this.opts.deviceId,
@@ -140,6 +155,7 @@ export class BridgeConnection {
     // Any pong is a sign of life. (Server auto-pongs our pings.)
     ws.on("pong", () => {
       this.lastActivityAt = Date.now();
+      this.log("heartbeat: pong");
     });
 
     ws.on("message", (raw) => {
@@ -167,13 +183,27 @@ export class BridgeConnection {
       }
     });
 
-    ws.on("close", () => {
+    ws.on("close", (code, reason) => {
       this.stopHeartbeat();
       this.ws = null;
-      if (this.closed) return;
-      const delay = Math.min(RECONNECT_BASE_MS * 2 ** this.attempt, RECONNECT_MAX_MS);
+      const why = `code=${code}${reason?.length ? ` reason=${reason.toString()}` : ""}`;
+      if (this.closed) {
+        this.log(`socket closed after stop (${why})`);
+        return;
+      }
+      // First retry after a drop is immediate — a server restart is
+      // usually back within a second, and waiting a full backoff step
+      // feels like "it didn't reconnect". Subsequent retries back off.
+      const delay =
+        this.attempt === 0
+          ? 0
+          : Math.min(RECONNECT_BASE_MS * 2 ** this.attempt, RECONNECT_MAX_MS);
       this.attempt++;
-      this.log(`disconnected; reconnecting in ${Math.round(delay / 1000)}s`);
+      this.log(
+        delay === 0
+          ? `disconnected (${why}); reconnecting now`
+          : `disconnected (${why}); reconnecting in ${Math.round(delay / 1000)}s`,
+      );
       setTimeout(() => {
         if (!this.closed) this.connect();
       }, delay);
@@ -184,7 +214,7 @@ export class BridgeConnection {
       const detail =
         [e.code, e.message].filter(Boolean).join(" ") ||
         (err ? String(err) : "unknown (connection refused / handshake rejected?)");
-      this.log(`socket error connecting to ${this.opts.server}: ${detail}`);
+      this.log(`socket error: ${detail}`);
     });
 
     // Surface non-101 handshake responses (auth/path problems), which
