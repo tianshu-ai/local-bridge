@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.3](https://github.com/tianshu-ai/local-bridge/compare/v0.7.2...v0.7.3) (2026-07-22)
+
+
+### Bug Fixes
+
+* heartbeat re-registers instead of WS ping (recover tools after server restart) ([#19](https://github.com/tianshu-ai/local-bridge/issues/19)) ([5eca50c](https://github.com/tianshu-ai/local-bridge/commit/5eca50c2db07a01e08ea2c5d3ed9fac99803af90))
+
 ## [0.7.2](https://github.com/tianshu-ai/local-bridge/compare/v0.7.1...v0.7.2) (2026-07-22)
 
 
