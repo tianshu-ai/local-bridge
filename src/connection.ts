@@ -22,19 +22,18 @@ const RECONNECT_BASE_MS = 1000;
 // retry after a drop is immediate (see the close handler).
 const RECONNECT_MAX_MS = 10_000;
 
-// Heartbeat: proactively detect "half-open" / silently-dead sockets
-// that never fire a `close` event (Wi-Fi switch, laptop sleep, NAT
-// timeout, server process vanished without a TCP FIN). We send a WS
-// ping every HEARTBEAT_MS; the server auto-replies with pong (RFC
-// default in the `ws` lib). If we go DEAD_AFTER_MS without ANY sign of
-// life (no pong, no message, nothing buffered to send, no tool call in
-// flight) we consider the socket dead and terminate it — that fires
-// `close`, which runs the normal reconnect-with-backoff path.
-const HEARTBEAT_MS = 25_000;
-// A socket is declared dead after ~2.5 missed heartbeats of total
-// silence. Kept comfortably above HEARTBEAT_MS so one slow round-trip
-// doesn't nuke a healthy link.
-const DEAD_AFTER_MS = 65_000;
+// Heartbeat = periodic re-registration. Every HEARTBEAT_MS we re-send
+// `reverse_mcp_register` on the live socket so the server's in-memory
+// tool catalogue stays current and self-heals after a server restart
+// (see the block comment on startHeartbeat for why ping/pong isn't
+// enough). If the link goes fully silent + idle past DEAD_AFTER_MS we
+// terminate the socket to force a clean reconnect (covers half-open
+// sockets that never fire `close`: Wi-Fi switch, sleep, NAT timeout).
+const HEARTBEAT_MS = 20_000;
+// Declared dead after this much total silence while idle. Comfortably
+// above HEARTBEAT_MS so a couple of missed cycles don't nuke a healthy
+// link, but low enough to recover from a wedged half-open socket.
+const DEAD_AFTER_MS = 60_000;
 
 export class BridgeConnection {
   private ws: WebSocket | null = null;
@@ -80,21 +79,49 @@ export class BridgeConnection {
     return this.inFlight > 0 || (this.ws?.bufferedAmount ?? 0) > 0;
   }
 
-  // ── heartbeat ────────────────────────────────────────────────
+  // ── heartbeat = periodic re-register ─────────────────────────
+  //
+  // We deliberately DON'T rely on WS ping/pong. The problem isn't
+  // "is the socket alive" — it's "does the server still know my
+  // tools". The server's tool registry is in-memory and keyed to the
+  // live socket: after a server restart (or any dropped+re-formed
+  // link) the registration is gone even if TCP looks fine, so the
+  // agent sees `tool not found`. A pong wouldn't detect that.
+  //
+  // Instead we periodically re-send `reverse_mcp_register` on the
+  // current socket. onRegister is idempotent server-side:
+  //   - live socket the server knows  → refreshes the entry; pending
+  //     calls are PRESERVED (same socket path), so in-flight tool
+  //     calls are NOT interrupted.
+  //   - server restarted (new process) → re-registers our tools, so
+  //     they come back automatically.
+  //   - half-open socket → the send eventually triggers a TCP reset
+  //     → 'close' → reconnect (new socket re-registers on open).
+  // A `registered` reply (or any inbound frame) bumps lastActivityAt;
+  // if the link goes fully silent past DEAD_AFTER_MS while idle we
+  // terminate it to force a clean reconnect.
+
+  private sendRegister(ws: WebSocket): void {
+    const reg: RegisterMsg = {
+      type: MSG.register,
+      deviceId: this.opts.deviceId,
+      label: this.opts.label,
+      tools: this.opts.tools.map((t) => t.descriptor),
+    };
+    ws.send(JSON.stringify(reg));
+  }
 
   private startHeartbeat(ws: WebSocket): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
       if (this.ws !== ws || ws.readyState !== WebSocket.OPEN) return;
-      // A busy or recently-active socket is alive by definition —
-      // don't judge it dead, just keep pinging.
       const silentFor = Date.now() - this.lastActivityAt;
+      // Fully silent + idle past the deadline → assume the link is
+      // dead (half-open); terminate to trigger reconnect.
       if (silentFor >= DEAD_AFTER_MS && !this.isBusy()) {
         this.log(
           `no response for ${Math.round(silentFor / 1000)}s — assuming dead link, forcing reconnect`,
         );
-        // terminate() (not close()) drops a half-open socket
-        // immediately; the 'close' handler then runs reconnect.
         try {
           ws.terminate();
         } catch {
@@ -102,15 +129,18 @@ export class BridgeConnection {
         }
         return;
       }
-      // Otherwise probe: server auto-pongs, bumping lastActivityAt.
+      // Otherwise re-assert our registration so the server's tool
+      // catalogue stays current (and recovers after a restart).
       try {
-        ws.ping();
-        this.log(`heartbeat: ping (silent ${Math.round(silentFor / 1000)}s, busy=${this.isBusy()})`);
-      } catch (err) {
-        // A failed ping means the socket is already broken; force it
-        // through the close/reconnect path rather than waiting.
+        this.sendRegister(ws);
         this.log(
-          `heartbeat: ping failed (${err instanceof Error ? err.message : String(err)}), terminating`,
+          `heartbeat: re-register (silent ${Math.round(silentFor / 1000)}s, busy=${this.isBusy()})`,
+        );
+      } catch (err) {
+        // Send failed → socket is broken; force reconnect now rather
+        // than waiting out the silence deadline.
+        this.log(
+          `heartbeat: re-register failed (${err instanceof Error ? err.message : String(err)}), terminating`,
         );
         try {
           ws.terminate();
@@ -142,20 +172,13 @@ export class BridgeConnection {
       this.log(
         `connected to ${this.opts.server} (heartbeat ${HEARTBEAT_MS / 1000}s, dead-after ${DEAD_AFTER_MS / 1000}s)`,
       );
-      const reg: RegisterMsg = {
-        type: MSG.register,
-        deviceId: this.opts.deviceId,
-        label: this.opts.label,
-        tools: this.opts.tools.map((t) => t.descriptor),
-      };
-      ws.send(JSON.stringify(reg));
+      this.sendRegister(ws);
       this.startHeartbeat(ws);
     });
 
-    // Any pong is a sign of life. (Server auto-pongs our pings.)
+    // Any pong (unsolicited server keepalive) counts as a sign of life.
     ws.on("pong", () => {
       this.lastActivityAt = Date.now();
-      this.log("heartbeat: pong");
     });
 
     ws.on("message", (raw) => {
