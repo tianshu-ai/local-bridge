@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/tianshu-ai/local-bridge/compare/v0.7.0...v0.7.1) (2026-07-22)
+
+
+### Bug Fixes
+
+* detect dead WS links via heartbeat + reconnect ([#15](https://github.com/tianshu-ai/local-bridge/issues/15)) ([a67b0c9](https://github.com/tianshu-ai/local-bridge/commit/a67b0c9c00712e4baa222befd95e4cc89c2ff4b6))
+
 ## [0.7.0](https://github.com/tianshu-ai/local-bridge/compare/v0.6.2...v0.7.0) (2026-07-21)
 
 
