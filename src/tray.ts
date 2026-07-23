@@ -272,10 +272,25 @@ export async function runTray(): Promise<number> {
     click: () => bridge.stop(),
   };
   const settingsItem = {
-    title: "Edit settings (config.json)…",
-    tooltip: "Open the config file",
+    title: "Settings…",
+    tooltip: "Edit the bridge settings",
     enabled: true,
-    click: () => openPath(ensureConfigFile()),
+    click: () => {
+      const p = ensureConfigFile();
+      const c = loadConfig();
+      // Native settings window (WinForms on Windows, AppleScript on
+      // macOS). Falls back to opening the raw JSON on Linux / failure.
+      const opened = openSettingsWindow(p, {
+        server: c.server,
+        token: c.token,
+        browser: c.browser,
+        engine: c.engine,
+        headless: c.headless,
+        shell: c.shell,
+        device: c.device,
+      });
+      if (!opened) openPath(p);
+    },
   };
   const logItem = {
     title: "Open log",
