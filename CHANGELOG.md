@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/tianshu-ai/local-bridge/compare/v0.9.0...v0.9.1) (2026-07-23)
+
+
+### Bug Fixes
+
+* **tray:** actually call openSettingsWindow (wire-up was lost in [#27](https://github.com/tianshu-ai/local-bridge/issues/27)) ([#29](https://github.com/tianshu-ai/local-bridge/issues/29)) ([44eb015](https://github.com/tianshu-ai/local-bridge/commit/44eb01514dcb426e0cc0fbcc405e5c794ca83bd4))
+
 ## [0.9.0](https://github.com/tianshu-ai/local-bridge/compare/v0.8.1...v0.9.0) (2026-07-23)
 
 
