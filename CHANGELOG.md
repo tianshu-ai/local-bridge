@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/tianshu-ai/local-bridge/compare/v0.7.4...v0.8.0) (2026-07-23)
+
+
+### Features
+
+* cross-platform system-tray app via systray2 (Windows/macOS/Linux) ([#23](https://github.com/tianshu-ai/local-bridge/issues/23)) ([b617585](https://github.com/tianshu-ai/local-bridge/commit/b61758517ce140b1a19de56945dcb08eecbee9be))
+
 ## [0.7.4](https://github.com/tianshu-ai/local-bridge/compare/v0.7.3...v0.7.4) (2026-07-22)
 
 
