@@ -77,8 +77,8 @@ function logPath(): string {
   return path.join(configDir(), "bridge.log");
 }
 
-function loadConfig(): BridgeConfig {
-  const defaults: BridgeConfig = {
+function defaultConfig(): BridgeConfig {
+  return {
     server: "ws://localhost:3110/ws",
     token: "",
     browser: true,
@@ -87,12 +87,31 @@ function loadConfig(): BridgeConfig {
     shell: false,
     device: "",
   };
+}
+
+function loadConfig(): BridgeConfig {
+  const defaults = defaultConfig();
   try {
     const raw = JSON.parse(fs.readFileSync(configPath(), "utf8")) as Partial<BridgeConfig>;
     return { ...defaults, ...raw };
   } catch {
     return defaults;
   }
+}
+
+/** Ensure config.json exists on disk so "Edit settings" always has a
+ *  file to open (first run hasn't Started the bridge yet, so nothing
+ *  has written it). Returns the path. Best-effort. */
+function ensureConfigFile(): string {
+  const p = configPath();
+  try {
+    if (!fs.existsSync(p)) {
+      fs.writeFileSync(p, JSON.stringify(defaultConfig(), null, 2) + "\n");
+    }
+  } catch {
+    /* best-effort */
+  }
+  return p;
 }
 
 // ─── tray icons ─────────────────────────────────────────────────────
@@ -255,7 +274,7 @@ export async function runTray(): Promise<number> {
     title: "Edit settings (config.json)…",
     tooltip: "Open the config file",
     enabled: true,
-    click: () => openPath(configPath()),
+    click: () => openPath(ensureConfigFile()),
   };
   const logItem = {
     title: "Open log",
@@ -348,13 +367,34 @@ export async function runTray(): Promise<number> {
 
 // ─── util ───────────────────────────────────────────────────────────
 
-/** Open a file/dir with the OS default handler (cross-platform). */
+/** Open a file with the OS default handler (cross-platform).
+ *  Windows: `cmd /c start "" file` is flaky under a detached spawn and
+ *  fails if the file type has no association, so open the file's default
+ *  editor via a small chain — try the shell association, then notepad as
+ *  a guaranteed fallback for our .json/.log text files. */
 function openPath(target: string): void {
   const plat = process.platform;
-  const cmd = plat === "win32" ? "cmd" : plat === "darwin" ? "open" : "xdg-open";
-  const args = plat === "win32" ? ["/c", "start", "", target] : [target];
   try {
-    spawn(cmd, args, { stdio: "ignore", detached: true, windowsHide: true }).unref();
+    if (plat === "win32") {
+      // `explorer <file>` opens with the registered handler; if none,
+      // fall back to notepad (always present) for our text files.
+      const child = spawn("cmd", ["/d", "/s", "/c", "start", "", target], {
+        stdio: "ignore",
+        detached: true,
+        windowsHide: true,
+      });
+      child.on("error", () => {
+        try {
+          spawn("notepad", [target], { stdio: "ignore", detached: true }).unref();
+        } catch {
+          /* give up */
+        }
+      });
+      child.unref();
+      return;
+    }
+    const cmd = plat === "darwin" ? "open" : "xdg-open";
+    spawn(cmd, [target], { stdio: "ignore", detached: true }).unref();
   } catch {
     /* best-effort */
   }
