@@ -51,15 +51,26 @@ export function openSettingsWindow(
 
 function openWindowsForm(configPath: string, cur: SettingsFields): boolean {
   const scriptPath = path.join(os.tmpdir(), `tsbridge-settings-${process.pid}.ps1`);
-  const ps = renderWindowsPs1(configPath, cur);
+  // Diagnostics: the PS script logs here (and we redirect its stdio too),
+  // so "clicked Settings, nothing happened" always leaves a trace.
+  const settingsLog = path.join(path.dirname(configPath), "settings.log");
+  const ps = renderWindowsPs1(configPath, cur, settingsLog);
   try {
     fs.writeFileSync(scriptPath, ps, "utf8");
   } catch {
     return false;
   }
   try {
-    // -STA is required for WinForms; -WindowStyle Hidden hides the PS
-    // console so only the form shows.
+    // -STA is required for WinForms. We do NOT pass -WindowStyle Hidden:
+    // it can suppress the form itself, and windowsHide:true on the spawn
+    // already keeps the PS console from flashing. The form is shown
+    // TopMost + Activated (see the script) so it comes to the front.
+    let out: number | "ignore" = "ignore";
+    try {
+      out = fs.openSync(settingsLog, "a");
+    } catch {
+      out = "ignore";
+    }
     const child = spawn(
       "powershell.exe",
       [
@@ -67,12 +78,10 @@ function openWindowsForm(configPath: string, cur: SettingsFields): boolean {
         "-ExecutionPolicy",
         "Bypass",
         "-STA",
-        "-WindowStyle",
-        "Hidden",
         "-File",
         scriptPath,
       ],
-      { stdio: "ignore", detached: true, windowsHide: true },
+      { stdio: ["ignore", out, out], detached: true, windowsHide: true },
     );
     // Swallow spawn errors (e.g. powershell missing) so they don't crash
     // the tray process; the caller falls back to opening the raw file.
@@ -89,12 +98,23 @@ function psq(s: string): string {
   return `'${String(s).replace(/'/g, "''")}'`;
 }
 
-function renderWindowsPs1(configPath: string, cur: SettingsFields): string {
+function renderWindowsPs1(
+  configPath: string,
+  cur: SettingsFields,
+  logPathArg: string,
+): string {
   // The script builds a WinForms dialog, prefilled with current values,
-  // and on OK writes config.json (merging into whatever is already there
-  // so we don't clobber unknown keys).
+  // and on OK writes the known fields to config.json.
   const cfgPathLit = psq(configPath);
+  const logLit = psq(logPathArg);
+  // Whole body wrapped in try/catch → any WinForms/assembly error is
+  // written to settings.log instead of vanishing silently.
   return `
+$ErrorActionPreference = 'Stop'
+$logPath = ${logLit}
+function Log($m) { try { Add-Content -Path $logPath -Value ("[{0}] {1}" -f (Get-Date -Format o), $m) } catch {} }
+Log 'settings window: starting'
+try {
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
@@ -107,6 +127,12 @@ $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
 $form.MinimizeBox = $false
+# Force the window to the front — a detached PowerShell child doesn't own
+# the foreground, so without this the form can open behind other windows
+# and look like "nothing happened".
+$form.TopMost = $true
+$form.ShowInTaskbar = $true
+$form.Add_Shown({ $form.Activate(); $form.BringToFront() })
 
 function New-Label($text, $y) {
   $l = New-Object System.Windows.Forms.Label
@@ -193,24 +219,31 @@ $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
 $form.Controls.Add($cancel)
 $form.CancelButton = $cancel
 
+Log 'settings window: showing dialog'
 $result = $form.ShowDialog()
 if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
-  # Merge into existing config so unknown keys survive.
-  $cfg = @{}
-  if (Test-Path $configPath) {
-    try { $cfg = Get-Content $configPath -Raw | ConvertFrom-Json -AsHashtable } catch { $cfg = @{} }
+  # Build the config as an ordered dictionary. We deliberately do NOT use
+  # ConvertFrom-Json -AsHashtable (that switch is PowerShell 6+; Windows
+  # ships 5.1). We just write the known fields — the tray only reads
+  # these, so a full round-trip merge isn't needed.
+  $cfg = [ordered]@{
+    server   = $server.Text
+    token    = $token.Text
+    device   = $device.Text
+    browser  = [bool]$browser.Checked
+    engine   = [string]$engine.SelectedItem
+    headless = [bool]$headless.Checked
+    shell    = [bool]$shell.Checked
   }
-  if ($null -eq $cfg) { $cfg = @{} }
-  $cfg['server']   = $server.Text
-  $cfg['token']    = $token.Text
-  $cfg['device']   = $device.Text
-  $cfg['browser']  = [bool]$browser.Checked
-  $cfg['engine']   = [string]$engine.SelectedItem
-  $cfg['headless'] = [bool]$headless.Checked
-  $cfg['shell']    = [bool]$shell.Checked
   $dir = Split-Path -Parent $configPath
   if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
   ($cfg | ConvertTo-Json -Depth 10) | Set-Content -Path $configPath -Encoding UTF8
+  Log 'settings window: saved config'
+} else {
+  Log 'settings window: cancelled'
+}
+} catch {
+  Log ("settings window ERROR: " + $_.Exception.Message)
 }
 `;
 }
