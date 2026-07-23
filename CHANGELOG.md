@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/tianshu-ai/local-bridge/compare/v0.8.1...v0.9.0) (2026-07-23)
+
+
+### Features
+
+* **tray:** native Settings window (WinForms on Windows, AppleScript on macOS) ([#27](https://github.com/tianshu-ai/local-bridge/issues/27)) ([929f6f6](https://github.com/tianshu-ai/local-bridge/commit/929f6f63005a8472b3db3d954ad15c71d118ad75))
+
 ## [0.8.1](https://github.com/tianshu-ai/local-bridge/compare/v0.8.0...v0.8.1) (2026-07-23)
 
 
