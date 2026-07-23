@@ -16,6 +16,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { openSettingsWindow } from "./settings-window.js";
 // systray2 is CommonJS. Under NodeNext the default-import interop
 // mis-resolves the class (sees a namespace with no construct signature),
 // so load it through createRequire to get the real constructor, and type
