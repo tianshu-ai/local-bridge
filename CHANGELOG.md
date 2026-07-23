@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/tianshu-ai/local-bridge/compare/v0.9.1...v0.9.2) (2026-07-23)
+
+
+### Bug Fixes
+
+* **tray:** make the Windows settings window actually appear ([#31](https://github.com/tianshu-ai/local-bridge/issues/31)) ([158c094](https://github.com/tianshu-ai/local-bridge/commit/158c094e682a70e4d050aebeea2181063fd1d084))
+
 ## [0.9.1](https://github.com/tianshu-ai/local-bridge/compare/v0.9.0...v0.9.1) (2026-07-23)
 
 
