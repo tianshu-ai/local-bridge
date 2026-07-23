@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/tianshu-ai/local-bridge/compare/v0.8.0...v0.8.1) (2026-07-23)
+
+
+### Bug Fixes
+
+* **tray:** make 'Edit settings' open reliably on Windows ([#25](https://github.com/tianshu-ai/local-bridge/issues/25)) ([250007b](https://github.com/tianshu-ai/local-bridge/commit/250007bb4c3745b159fe158c828db3833556dc7f))
+
 ## [0.8.0](https://github.com/tianshu-ai/local-bridge/compare/v0.7.4...v0.8.0) (2026-07-23)
 
 
