@@ -44,6 +44,7 @@ import { connectMcpChild, bridgeOutputDir } from "./mcp-child.js";
 import { localTools, defaultShellRoot } from "./local-tools.js";
 import { runUpdate, installedVersion } from "./update.js";
 import { installApp } from "./install-app.js";
+import { runTray } from "./tray.js";
 import type { LocalTool } from "./protocol.js";
 
 /** Is a Chrome already listening on this CDP endpoint? */
@@ -100,6 +101,11 @@ async function main(): Promise<void> {
         dest: typeof args.dest === "string" ? args.dest : undefined,
       }),
     );
+  }
+  if (sub === "tray") {
+    // Cross-platform system-tray wrapper (Windows/macOS/Linux) via
+    // systray2. Runs until the user quits from the tray menu.
+    process.exit(await runTray());
   }
 
   const server = typeof args.server === "string" ? args.server : "";

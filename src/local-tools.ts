@@ -170,9 +170,17 @@ Runs with the bridge user's own permissions on their real machine — but is jai
         let stderr = "";
         let timedOut = false;
         let settled = false;
-        const child = spawn("bash", ["-c", command], {
+        // Pick the platform's shell: bash on Unix, cmd.exe on Windows
+        // (Windows has no bash by default). `cmd /d /s /c` runs the
+        // command string as-is without an autorun profile.
+        const [shellCmd, shellArgs] =
+          process.platform === "win32"
+            ? [process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", command]]
+            : ["bash", ["-c", command]];
+        const child = spawn(shellCmd, shellArgs, {
           cwd: fs.existsSync(workdir) ? workdir : opts.root,
           env: process.env,
+          windowsHide: true,
         });
         const timer = setTimeout(() => {
           timedOut = true;
