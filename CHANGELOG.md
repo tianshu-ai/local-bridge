@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/tianshu-ai/local-bridge/compare/v0.9.2...v0.10.0) (2026-07-26)
+
+
+### Features
+
+* embedded MCP fallback (no npx required) ([d7adf98](https://github.com/tianshu-ai/local-bridge/commit/d7adf982817efaa67c9cd2b01fe8f5ae0329fc0e))
+
 ## [0.9.2](https://github.com/tianshu-ai/local-bridge/compare/v0.9.1...v0.9.2) (2026-07-23)
 
 
