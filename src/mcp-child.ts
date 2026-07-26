@@ -49,16 +49,32 @@ export function bridgeOutputDir(): string {
 
 /**
  * Resolve the command+args for a downstream MCP package.
- * In normal CLI usage where npx is on PATH, returns { command: "npx", args } as-is.
- * In embedded/packaged mode (e.g. Tauri app, no npx), falls back to running
- * the package's bin entry directly via the current Node (process.execPath).
+ * Priority: local node_modules first (fast, no network), npx fallback.
  */
 export function resolveEmbeddedMcp(
   pkg: string,
   binEntry: string,
   extraArgs: string[] = [],
 ): { command: string; args: string[] } {
-  // Try to find npx
+  // 1. Try local node_modules (pre-bundled in the desktop app payload,
+  //    or installed alongside the bridge in a global npm install).
+  let entryPath: string | undefined;
+  try {
+    const esmRequire = createRequire(import.meta.url);
+    const pkgJson = path.dirname(
+      esmRequire.resolve(`${pkg}/package.json`, { paths: [__dirname, process.cwd()] }),
+    );
+    entryPath = path.join(pkgJson, binEntry);
+  } catch {
+    // Try sibling node_modules.
+    const candidate = path.join(__dirname, "..", "node_modules", pkg, binEntry);
+    if (fs.existsSync(candidate)) entryPath = candidate;
+  }
+  if (entryPath && fs.existsSync(entryPath)) {
+    return { command: process.execPath, args: [entryPath, ...extraArgs] };
+  }
+
+  // 2. Fallback: use npx (downloads from network — slower, needs connectivity).
   const npxName = process.platform === "win32" ? "npx.cmd" : "npx";
   const pathDirs = (process.env.PATH || "").split(path.delimiter);
   const npxFound = pathDirs.some((d) => {
@@ -72,29 +88,11 @@ export function resolveEmbeddedMcp(
   if (npxFound) {
     return { command: npxName, args: ["-y", `${pkg}@latest`, ...extraArgs] };
   }
-  // Fallback: resolve from local node_modules (pre-bundled in payload).
-  // The package's bin entry is relative to its package dir.
-  let entryPath: string | undefined;
-  try {
-    // require.resolve from our own module root will find it in the
-    // payload's node_modules tree.
-    const esmRequire = createRequire(import.meta.url);
-    const pkgJson = path.dirname(
-      esmRequire.resolve(`${pkg}/package.json`, { paths: [__dirname, process.cwd()] }),
-    );
-    entryPath = path.join(pkgJson, binEntry);
-  } catch {
-    // Last resort: try sibling node_modules
-    const candidate = path.join(__dirname, "..", "node_modules", pkg, binEntry);
-    if (fs.existsSync(candidate)) entryPath = candidate;
-  }
-  if (!entryPath || !fs.existsSync(entryPath)) {
-    throw new Error(
-      `Cannot find ${pkg} locally and npx is not available. ` +
-        `Ensure ${pkg} is pre-installed in node_modules or npx is on PATH.`,
-    );
-  }
-  return { command: process.execPath, args: [entryPath, ...extraArgs] };
+
+  throw new Error(
+    `Cannot find ${pkg} locally and npx is not available. ` +
+      `Ensure ${pkg} is pre-installed in node_modules or npx is on PATH.`,
+  );
 }
 
 export async function connectMcpChild(opts: McpChildOptions): Promise<LocalTool[]> {
