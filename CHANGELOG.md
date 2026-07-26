@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/tianshu-ai/local-bridge/compare/v0.10.0...v0.10.1) (2026-07-26)
+
+
+### Bug Fixes
+
+* use import.meta.url instead of __dirname (ESM compat) ([877efef](https://github.com/tianshu-ai/local-bridge/commit/877efeff4cc419bacb8b1f8b4de6066dcb172313))
+
 ## [0.10.0](https://github.com/tianshu-ai/local-bridge/compare/v0.9.2...v0.10.0) (2026-07-26)
 
 
