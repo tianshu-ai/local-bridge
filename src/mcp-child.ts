@@ -7,6 +7,11 @@
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { textResult, type LocalTool, type ToolDescriptor, type ToolResult } from "./protocol.js";
@@ -73,8 +78,9 @@ export function resolveEmbeddedMcp(
   try {
     // require.resolve from our own module root will find it in the
     // payload's node_modules tree.
+    const esmRequire = createRequire(import.meta.url);
     const pkgJson = path.dirname(
-      require.resolve(`${pkg}/package.json`, { paths: [__dirname, process.cwd()] }),
+      esmRequire.resolve(`${pkg}/package.json`, { paths: [__dirname, process.cwd()] }),
     );
     entryPath = path.join(pkgJson, binEntry);
   } catch {
