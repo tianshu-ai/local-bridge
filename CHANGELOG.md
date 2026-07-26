@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1](https://github.com/tianshu-ai/local-bridge/compare/v0.10.0...v0.10.1) (2026-07-26)
+
+
+### Bug Fixes
+
+* prefer local node_modules over npx (avoid network timeout) ([33bf94f](https://github.com/tianshu-ai/local-bridge/commit/33bf94fc4efdfbafb2d4cbe799d54b388e0b5d13))
+* use import.meta.url instead of __dirname (ESM compat) ([877efef](https://github.com/tianshu-ai/local-bridge/commit/877efeff4cc419bacb8b1f8b4de6066dcb172313))
+
 ## [0.10.0](https://github.com/tianshu-ai/local-bridge/compare/v0.9.2...v0.10.0) (2026-07-26)
 
 
