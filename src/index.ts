@@ -40,7 +40,7 @@
 
 import os from "node:os";
 import { BridgeConnection } from "./connection.js";
-import { connectMcpChild, bridgeOutputDir } from "./mcp-child.js";
+import { connectMcpChild, bridgeOutputDir, resolveEmbeddedMcp } from "./mcp-child.js";
 import { localTools, defaultShellRoot } from "./local-tools.js";
 import { runUpdate, installedVersion } from "./update.js";
 import { installApp } from "./install-app.js";
@@ -145,9 +145,13 @@ async function main(): Promise<void> {
         // cloakbrowser-mcp reads PLAYWRIGHT_MCP_HEADLESS (default true =
         // headless). Set it explicitly from our headful/--headless flag
         // so the window shows when the user wants it.
+        const { command: stealthCmd, args: stealthArgs } = resolveEmbeddedMcp(
+          "cloakbrowser-mcp",
+          "dist/cli.js",
+        );
         const stealthTools = await connectMcpChild({
-          command: "npx",
-          args: ["-y", "cloakbrowser-mcp@latest"],
+          command: stealthCmd,
+          args: stealthArgs,
           env: { PLAYWRIGHT_MCP_HEADLESS: headful ? "false" : "true" },
           log: (m) => console.log(`[local-bridge] ${m}`),
         });
@@ -167,21 +171,26 @@ async function main(): Promise<void> {
       // surface as stealth; only the underlying browser differs.
       const log = (m: string) => console.log(`[local-bridge] ${m}`);
       // Pin output dir explicitly so it never resolves against a bad cwd.
-      const mcpArgs = ["-y", "@playwright/mcp@latest", "--output-dir", bridgeOutputDir()];
+      const ownExtraArgs = ["--output-dir", bridgeOutputDir()];
       const cdpUp = cdpUrl ? await probeCdp(cdpUrl) : false;
       if (cdpUp) {
-        mcpArgs.push("--cdp-endpoint", cdpUrl);
+        ownExtraArgs.push("--cdp-endpoint", cdpUrl);
         log(`own: connecting to your running Chrome at ${cdpUrl}`);
       } else {
         // @playwright/mcp: --browser takes a browser OR chrome channel
         // ("chrome", "msedge", …). Point it at the system Chrome.
-        mcpArgs.push("--browser", channel);
-        if (userDataDir) mcpArgs.push("--user-data-dir", userDataDir);
-        if (!headful) mcpArgs.push("--headless");
+        ownExtraArgs.push("--browser", channel);
+        if (userDataDir) ownExtraArgs.push("--user-data-dir", userDataDir);
+        if (!headful) ownExtraArgs.push("--headless");
         log(`own: launching system ${channel}${headful ? "" : " (headless)"}`);
       }
       try {
-        const ownTools = await connectMcpChild({ command: "npx", args: mcpArgs, log });
+        const { command: ownCmd, args: ownArgs } = resolveEmbeddedMcp(
+          "@playwright/mcp",
+          "cli.js",
+          ownExtraArgs,
+        );
+        const ownTools = await connectMcpChild({ command: ownCmd, args: ownArgs, log });
         tools.push(...ownTools);
       } catch (err) {
         console.error(
