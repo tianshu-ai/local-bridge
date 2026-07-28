@@ -173,10 +173,13 @@ Runs with the bridge user's own permissions on their real machine — but is jai
         // Pick the platform's shell: bash on Unix, cmd.exe on Windows
         // (Windows has no bash by default). `cmd /d /s /c` runs the
         // command string as-is without an autorun profile.
+        // Use the user's default shell in login+interactive mode so
+        // .bashrc / .zshrc / .profile are all loaded (PATH, nvm, etc.).
+        const userShell = process.env.SHELL || "/bin/bash";
         const [shellCmd, shellArgs] =
           process.platform === "win32"
             ? [process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", command]]
-            : ["bash", ["-l", "-c", command]];
+            : [userShell, ["-l", "-i", "-c", command]];
         const child = spawn(shellCmd, shellArgs, {
           cwd: fs.existsSync(workdir) ? workdir : opts.root,
           env: process.env,
