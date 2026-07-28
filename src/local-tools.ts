@@ -176,7 +176,7 @@ Runs with the bridge user's own permissions on their real machine — but is jai
         const [shellCmd, shellArgs] =
           process.platform === "win32"
             ? [process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", command]]
-            : ["bash", ["-c", command]];
+            : ["bash", ["-l", "-c", command]];
         const child = spawn(shellCmd, shellArgs, {
           cwd: fs.existsSync(workdir) ? workdir : opts.root,
           env: process.env,
