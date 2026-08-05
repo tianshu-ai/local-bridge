@@ -263,15 +263,14 @@ export function SyncUpTool(opts: LocalToolsOptions): LocalTool {
   return {
     descriptor: {
       name: "sync_up",
-      description: `Upload files / directories FROM this machine UP to the agent (the "up" direction: your box → tianshu).
+      description: `List files / directories on this machine (the "up" direction: your box → tianshu).
 
-Reads the given paths inside the shell root and returns their contents (base64) so the agent
-can write them into its own workspace / sandbox. Directories are read recursively.
+Scans the given paths inside the shell root and returns a manifest (path + size) of each file found.
+Does NOT return file contents — use read_file or exec(cat) to read specific files afterward.
+Directories are scanned recursively.
 
 Paths are resolved relative to the shell root (${opts.root}); paths that escape it are rejected.
-Per-file cap ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MiB; at most ${MAX_SYNC_FILES} files per call.
-
-Use this to hand local files to the agent instead of pasting their contents into a command.`,
+At most ${MAX_SYNC_FILES} files per call.`,
       inputSchema: {
         type: "object",
         properties: {
@@ -290,7 +289,7 @@ Use this to hand local files to the agent instead of pasting their contents into
       if (!Array.isArray(raw) || raw.length === 0) {
         return jsonResult({ ok: false, error: "paths must be a non-empty string array" }, true);
       }
-      const files: { path: string; base64: string; bytes: number }[] = [];
+      const files: { path: string; bytes: number }[] = [];
       const skipped: { path: string; reason: string }[] = [];
       for (const p of raw) {
         const rel = String(p);
@@ -317,8 +316,7 @@ Use this to hand local files to the agent instead of pasting their contents into
               skipped.push({ path: f.rel, reason: `file ${st.size}B exceeds ${MAX_FILE_BYTES}B cap` });
               continue;
             }
-            const buf = await fsp.readFile(f.abs);
-            files.push({ path: f.rel, base64: buf.toString("base64"), bytes: st.size });
+            files.push({ path: f.rel, bytes: st.size });
           } catch (err) {
             skipped.push({ path: f.rel, reason: err instanceof Error ? err.message : String(err) });
           }
@@ -327,11 +325,11 @@ Use this to hand local files to the agent instead of pasting their contents into
       return jsonResult({
         ok: skipped.length === 0,
         base: opts.root,
-        encoding: "base64",
-        files,
+
+        files: files.map(f => ({ path: f.path, bytes: f.bytes })),
         skipped,
         notice:
-          "Each file's `base64` is its raw content. Decode and write it into your workspace at the same relative `path`.",
+          "Files read successfully. Use read_file or exec(cat) to inspect content of specific files.",
       });
     },
   };
