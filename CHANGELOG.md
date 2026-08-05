@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0](https://github.com/tianshu-ai/local-bridge/compare/v0.10.3...v0.11.0) (2026-08-05)
+
+
+### Features
+
+* increase exec stdout cap (200→2000 lines, 8KB→512KB) ([5308bf0](https://github.com/tianshu-ai/local-bridge/commit/5308bf00d641dc637142ef1ec4e6620e60ca1d06))
+
+
+### Bug Fixes
+
+* sync_up no longer returns base64 file contents ([70bed1b](https://github.com/tianshu-ai/local-bridge/commit/70bed1b955504e641766bb4d55f0e4e604b0e302))
+
 ## [0.7.4](https://github.com/tianshu-ai/local-bridge/compare/v0.10.1...v0.7.4) (2026-07-28)
 
 
