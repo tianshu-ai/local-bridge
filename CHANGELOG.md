@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/tianshu-ai/local-bridge/compare/v0.11.0...v0.12.0) (2026-08-31)
+
+
+### Features
+
+* sync_up now returns file content (base64), not just manifest ([9509a13](https://github.com/tianshu-ai/local-bridge/commit/9509a13bbcc6d1fe648c1461478b669704915555))
+
+
+### Refactor
+
+* remove sync_up/sync_down tools, keep only exec/read_file/write_file ([73da3b9](https://github.com/tianshu-ai/local-bridge/commit/73da3b95cecdda5300ae79ccbb9c443cafeb28f2))
+* sync_up returns manifest only, sync_down verifies paths only ([492b585](https://github.com/tianshu-ai/local-bridge/commit/492b5852cf25badb1cc6b94da8e5ec582f77b407))
+
 ## [0.11.0](https://github.com/tianshu-ai/local-bridge/compare/v0.10.3...v0.11.0) (2026-08-31)
 
 
