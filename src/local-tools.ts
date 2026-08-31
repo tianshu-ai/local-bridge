@@ -263,13 +263,14 @@ export function SyncUpTool(opts: LocalToolsOptions): LocalTool {
   return {
     descriptor: {
       name: "sync_up",
-      description: `Read files from this machine and return their content (the "up" direction: your box → tianshu).
+      description: `List files on this machine for syncing up to the server (bridge → server).
 
-Reads the given paths inside the shell root and returns each file's content as base64.
-Directories are scanned recursively. All matched files are returned with their content.
+Scans the given paths inside the shell root and returns a manifest (path + size) of each file.
+Does NOT transfer file content — use read_file for actual content retrieval.
+Directories are scanned recursively.
 
 Paths are resolved relative to the shell root (${opts.root}); paths that escape it are rejected.
-Per-file cap ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MiB; at most ${MAX_SYNC_FILES} files per call.`,
+At most ${MAX_SYNC_FILES} files per call.`,
       inputSchema: {
         type: "object",
         properties: {
@@ -277,7 +278,7 @@ Per-file cap ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MiB; at most ${MAX_SYNC_
             type: "array",
             items: { type: "string" },
             minItems: 1,
-            description: `Files and/or directories to read, relative to the shell root (${opts.root}).`,
+            description: `Files and/or directories to list, relative to the shell root (${opts.root}).`,
           },
         },
         required: ["paths"],
@@ -288,7 +289,7 @@ Per-file cap ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MiB; at most ${MAX_SYNC_
       if (!Array.isArray(raw) || raw.length === 0) {
         return jsonResult({ ok: false, error: "paths must be a non-empty string array" }, true);
       }
-      const files: { path: string; bytes: number; base64: string }[] = [];
+      const files: { path: string; bytes: number }[] = [];
       const skipped: { path: string; reason: string }[] = [];
       for (const p of raw) {
         const rel = String(p);
@@ -315,8 +316,7 @@ Per-file cap ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MiB; at most ${MAX_SYNC_
               skipped.push({ path: f.rel, reason: `file ${st.size}B exceeds ${MAX_FILE_BYTES}B cap` });
               continue;
             }
-            const buf = await fsp.readFile(f.abs);
-            files.push({ path: f.rel, bytes: buf.length, base64: buf.toString("base64") });
+            files.push({ path: f.rel, bytes: st.size });
           } catch (err) {
             skipped.push({ path: f.rel, reason: err instanceof Error ? err.message : String(err) });
           }
@@ -325,7 +325,7 @@ Per-file cap ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MiB; at most ${MAX_SYNC_
       return jsonResult({
         ok: skipped.length === 0,
         base: opts.root,
-        files: files.map(f => ({ path: f.path, bytes: f.bytes, base64: f.base64 })),
+        files,
         skipped,
       });
     },
@@ -338,87 +338,56 @@ export function SyncDownTool(opts: LocalToolsOptions): LocalTool {
   return {
     descriptor: {
       name: "sync_down",
-      description: `Download files FROM the agent DOWN onto this machine (the "down" direction: tianshu → your box).
+      description: `Verify files exist on this machine after syncing down from the server (server → bridge).
 
-Writes the given files into the shell root (${opts.root}). Each file is
-{ path: <relative path>, base64: <content> }. Existing files are overwritten. Parent dirs
-are created. Paths that escape the root are rejected.
+Checks that the given paths exist under the shell root (${opts.root}).
+Actual file content is transferred via write_file before calling this.
+This tool confirms the sync completed successfully.
 
-Per-file cap ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MiB; at most ${MAX_SYNC_FILES} files per call.
-
-Use this AFTER the agent produces artefacts you want on your local machine.`,
+Paths are resolved relative to the shell root; paths that escape it are rejected.`,
       inputSchema: {
         type: "object",
         properties: {
-          files: {
+          paths: {
             type: "array",
-            items: {
-              type: "object",
-              properties: {
-                path: { type: "string", description: "Relative destination path within the sync dir." },
-                base64: { type: "string", description: "File content, base64-encoded." },
-              },
-              required: ["path", "base64"],
-            },
+            items: { type: "string" },
             minItems: 1,
-            description: "Files to write onto the bridge host.",
+            description: `File paths to verify, relative to the shell root (${opts.root}).`,
           },
         },
-        required: ["files"],
+        required: ["paths"],
       },
     },
     async run(args: Record<string, unknown>): Promise<ToolResult> {
-      const raw = args.files;
+      const raw = args.paths;
       if (!Array.isArray(raw) || raw.length === 0) {
-        return jsonResult({ ok: false, error: "files must be a non-empty array of {path, base64}" }, true);
+        return jsonResult({ ok: false, error: "paths must be a non-empty string array" }, true);
       }
-      if (raw.length > MAX_SYNC_FILES) {
-        return jsonResult({ ok: false, error: `too many files (${raw.length} > ${MAX_SYNC_FILES})` }, true);
-      }
-      try {
-        await fsp.mkdir(opts.root, { recursive: true });
-      } catch (err) {
-        return jsonResult({ ok: false, error: `cannot create shell root: ${err instanceof Error ? err.message : String(err)}` }, true);
-      }
-      const written: { path: string; bytes: number }[] = [];
-      const skipped: { path: string; reason: string }[] = [];
-      for (const entry of raw) {
-        const rel = String((entry as { path?: unknown }).path ?? "");
-        const b64 = String((entry as { base64?: unknown }).base64 ?? "");
-        if (!rel) {
-          skipped.push({ path: "(missing)", reason: "path is required" });
-          continue;
-        }
+      const verified: { path: string; bytes: number }[] = [];
+      const missing: { path: string; reason: string }[] = [];
+      for (const p of raw) {
+        const rel = String(p);
         const abs = resolveWithin(opts.root, rel);
         if (!abs) {
-          skipped.push({ path: rel, reason: `path escapes shell root ${opts.root}` });
+          missing.push({ path: rel, reason: `path escapes shell root ${opts.root}` });
           continue;
         }
-        let buf: Buffer;
         try {
-          buf = Buffer.from(b64, "base64");
+          const st = await fsp.stat(abs);
+          if (!st.isFile()) {
+            missing.push({ path: rel, reason: "not a regular file" });
+            continue;
+          }
+          verified.push({ path: rel, bytes: st.size });
         } catch {
-          skipped.push({ path: rel, reason: "invalid base64" });
-          continue;
-        }
-        if (buf.length > MAX_FILE_BYTES) {
-          skipped.push({ path: rel, reason: `file ${buf.length}B exceeds ${MAX_FILE_BYTES}B cap` });
-          continue;
-        }
-        try {
-          await fsp.mkdir(path.dirname(abs), { recursive: true });
-          await fsp.writeFile(abs, buf);
-          written.push({ path: rel, bytes: buf.length });
-        } catch (err) {
-          skipped.push({ path: rel, reason: err instanceof Error ? err.message : String(err) });
+          missing.push({ path: rel, reason: "file not found" });
         }
       }
       return jsonResult({
-        ok: skipped.length === 0,
+        ok: missing.length === 0,
         dest: opts.root,
-        written,
-        skipped,
-        notice: `Wrote ${written.length} file(s) under ${opts.root} on the bridge host.`,
+        verified,
+        missing,
       });
     },
   };
