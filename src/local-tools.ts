@@ -263,14 +263,13 @@ export function SyncUpTool(opts: LocalToolsOptions): LocalTool {
   return {
     descriptor: {
       name: "sync_up",
-      description: `List files / directories on this machine (the "up" direction: your box → tianshu).
+      description: `Read files from this machine and return their content (the "up" direction: your box → tianshu).
 
-Scans the given paths inside the shell root and returns a manifest (path + size) of each file found.
-Does NOT return file contents — use read_file or exec(cat) to read specific files afterward.
-Directories are scanned recursively.
+Reads the given paths inside the shell root and returns each file's content as base64.
+Directories are scanned recursively. All matched files are returned with their content.
 
 Paths are resolved relative to the shell root (${opts.root}); paths that escape it are rejected.
-At most ${MAX_SYNC_FILES} files per call.`,
+Per-file cap ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MiB; at most ${MAX_SYNC_FILES} files per call.`,
       inputSchema: {
         type: "object",
         properties: {
@@ -289,7 +288,7 @@ At most ${MAX_SYNC_FILES} files per call.`,
       if (!Array.isArray(raw) || raw.length === 0) {
         return jsonResult({ ok: false, error: "paths must be a non-empty string array" }, true);
       }
-      const files: { path: string; bytes: number }[] = [];
+      const files: { path: string; bytes: number; base64: string }[] = [];
       const skipped: { path: string; reason: string }[] = [];
       for (const p of raw) {
         const rel = String(p);
@@ -316,7 +315,8 @@ At most ${MAX_SYNC_FILES} files per call.`,
               skipped.push({ path: f.rel, reason: `file ${st.size}B exceeds ${MAX_FILE_BYTES}B cap` });
               continue;
             }
-            files.push({ path: f.rel, bytes: st.size });
+            const buf = await fsp.readFile(f.abs);
+            files.push({ path: f.rel, bytes: buf.length, base64: buf.toString("base64") });
           } catch (err) {
             skipped.push({ path: f.rel, reason: err instanceof Error ? err.message : String(err) });
           }
@@ -325,11 +325,8 @@ At most ${MAX_SYNC_FILES} files per call.`,
       return jsonResult({
         ok: skipped.length === 0,
         base: opts.root,
-
-        files: files.map(f => ({ path: f.path, bytes: f.bytes })),
+        files: files.map(f => ({ path: f.path, bytes: f.bytes, base64: f.base64 })),
         skipped,
-        notice:
-          "Files read successfully. Use read_file or exec(cat) to inspect content of specific files.",
       });
     },
   };
