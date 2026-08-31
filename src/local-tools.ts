@@ -427,6 +427,114 @@ Use this AFTER the agent produces artefacts you want on your local machine.`,
   };
 }
 
+// ─── read_file (bridge → server, single file) ───────────────────────
+
+export function ReadFileTool(opts: LocalToolsOptions): LocalTool {
+  return {
+    descriptor: {
+      name: "read_file",
+      description: `Read a single file from this machine and return its content as base64.
+
+Path is resolved relative to the shell root (${opts.root}); paths that escape it are rejected.
+Per-file cap ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MiB.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: `File path, relative to the shell root (${opts.root}).`,
+          },
+        },
+        required: ["path"],
+      },
+    },
+    async run(args: Record<string, unknown>): Promise<ToolResult> {
+      const rel = String(args.path ?? "");
+      if (!rel) {
+        return jsonResult({ ok: false, error: "path is required" }, true);
+      }
+      const abs = resolveWithin(opts.root, rel);
+      if (!abs) {
+        return jsonResult({ ok: false, error: `path escapes shell root ${opts.root}` }, true);
+      }
+      try {
+        const st = await fsp.stat(abs);
+        if (!st.isFile()) {
+          return jsonResult({ ok: false, error: "not a regular file" }, true);
+        }
+        if (st.size > MAX_FILE_BYTES) {
+          return jsonResult({ ok: false, error: `file ${st.size}B exceeds ${MAX_FILE_BYTES}B cap` }, true);
+        }
+        const buf = await fsp.readFile(abs);
+        return jsonResult({
+          ok: true,
+          path: rel,
+          bytes: buf.length,
+          base64: buf.toString("base64"),
+        });
+      } catch (err) {
+        return jsonResult({ ok: false, error: err instanceof Error ? err.message : String(err) }, true);
+      }
+    },
+  };
+}
+
+// ─── write_file (server → bridge, single file) ──────────────────────
+
+export function WriteFileTool(opts: LocalToolsOptions): LocalTool {
+  return {
+    descriptor: {
+      name: "write_file",
+      description: `Write a single file onto this machine from base64 content.
+
+Path is resolved relative to the shell root (${opts.root}); paths that escape it are rejected.
+Parent directories are created automatically. Existing files are overwritten.
+Per-file cap ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MiB.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: `Destination path, relative to the shell root (${opts.root}).`,
+          },
+          base64: {
+            type: "string",
+            description: "File content, base64-encoded.",
+          },
+        },
+        required: ["path", "base64"],
+      },
+    },
+    async run(args: Record<string, unknown>): Promise<ToolResult> {
+      const rel = String(args.path ?? "");
+      const b64 = String(args.base64 ?? "");
+      if (!rel) {
+        return jsonResult({ ok: false, error: "path is required" }, true);
+      }
+      const abs = resolveWithin(opts.root, rel);
+      if (!abs) {
+        return jsonResult({ ok: false, error: `path escapes shell root ${opts.root}` }, true);
+      }
+      let buf: Buffer;
+      try {
+        buf = Buffer.from(b64, "base64");
+      } catch {
+        return jsonResult({ ok: false, error: "invalid base64" }, true);
+      }
+      if (buf.length > MAX_FILE_BYTES) {
+        return jsonResult({ ok: false, error: `file ${buf.length}B exceeds ${MAX_FILE_BYTES}B cap` }, true);
+      }
+      try {
+        await fsp.mkdir(path.dirname(abs), { recursive: true });
+        await fsp.writeFile(abs, buf);
+        return jsonResult({ ok: true, path: rel, bytes: buf.length });
+      } catch (err) {
+        return jsonResult({ ok: false, error: err instanceof Error ? err.message : String(err) }, true);
+      }
+    },
+  };
+}
+
 // ─── factory ─────────────────────────────────────────────────────────
 
 /** The fixed default shell root: ~/.tianshu_shell. All exec + sync
@@ -437,5 +545,5 @@ export function defaultShellRoot(): string {
 
 /** Build the native local tool set (shell + sync), jailed to opts.root. */
 export function localTools(opts: LocalToolsOptions): LocalTool[] {
-  return [ExecTool(opts), SyncUpTool(opts), SyncDownTool(opts)];
+  return [ExecTool(opts), SyncUpTool(opts), SyncDownTool(opts), ReadFileTool(opts), WriteFileTool(opts)];
 }
