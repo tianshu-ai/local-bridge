@@ -509,7 +509,7 @@ export function defaultShellRoot(): string {
   return path.join(os.homedir(), ".tianshu_shell");
 }
 
-/** Build the native local tool set (shell + sync), jailed to opts.root. */
+/** Build the native local tool set, jailed to opts.root. */
 export function localTools(opts: LocalToolsOptions): LocalTool[] {
-  return [ExecTool(opts), SyncUpTool(opts), SyncDownTool(opts), ReadFileTool(opts), WriteFileTool(opts)];
+  return [ExecTool(opts), ReadFileTool(opts), WriteFileTool(opts)];
 }
