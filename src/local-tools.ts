@@ -40,7 +40,7 @@ const STDOUT_BYTE_CAP = 512_000;
 // Base64 in a JSON-RPC frame is memory-bound; cap per-file bytes so a
 // stray `sync_up({paths:['huge.iso']})` can't OOM the bridge or blow
 // the WS frame. 8 MiB raw ≈ 11 MiB base64.
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_FILE_BYTES = 32 * 1024 * 1024;
 // Guard directory walks so a recursive sync_up of `~` can't fan out
 // unbounded.
 const MAX_SYNC_FILES = 500;
