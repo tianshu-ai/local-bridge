@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.12.0](https://github.com/tianshu-ai/local-bridge/compare/v0.11.0...v0.12.0) (2026-09-02)
+
+
+### Features
+
+* abort signal support — $/cancel kills running exec ([57e7056](https://github.com/tianshu-ai/local-bridge/commit/57e7056ccd5a31bd8250007c6d2723e1da0f1530))
+* bump MAX_FILE_BYTES from 8MB to 32MB ([c2d24aa](https://github.com/tianshu-ai/local-bridge/commit/c2d24aa8a8fb51b4fe0fa5f84f24aca6798426df))
+* remove per-file size cap entirely ([e6a2efe](https://github.com/tianshu-ai/local-bridge/commit/e6a2efe6821b289f9a854f0ea8919f569454f16d))
+* sync_up now returns file content (base64), not just manifest ([9509a13](https://github.com/tianshu-ai/local-bridge/commit/9509a13bbcc6d1fe648c1461478b669704915555))
+
+
+### Refactor
+
+* remove sync_up/sync_down tools, keep only exec/read_file/write_file ([73da3b9](https://github.com/tianshu-ai/local-bridge/commit/73da3b95cecdda5300ae79ccbb9c443cafeb28f2))
+* sync_up returns manifest only, sync_down verifies paths only ([492b585](https://github.com/tianshu-ai/local-bridge/commit/492b5852cf25badb1cc6b94da8e5ec582f77b407))
+
 ## [0.11.0](https://github.com/tianshu-ai/local-bridge/compare/v0.10.3...v0.11.0) (2026-08-31)
 
 
