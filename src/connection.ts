@@ -264,7 +264,23 @@ export class BridgeConnection {
     }
   }
 
+  /** In-flight abort controllers keyed by request id. */
+  private inFlightAbort = new Map<string, AbortController>();
+
   private async handleRequest(req: RequestMsg): Promise<void> {
+    // $/cancel: abort an in-flight tool call
+    if (req.method === "$/cancel") {
+      const requestId = (req.params as { requestId?: string })?.requestId;
+      if (requestId) {
+        const ctl = this.inFlightAbort.get(requestId);
+        if (ctl) {
+          ctl.abort();
+          this.inFlightAbort.delete(requestId);
+        }
+      }
+      this.send({ type: MSG.response, id: req.id, result: {} });
+      return;
+    }
     if (req.method !== "tools/call") {
       this.send({ type: MSG.response, id: req.id, error: { code: -32601, message: `unsupported method: ${req.method}` } });
       return;
@@ -275,20 +291,29 @@ export class BridgeConnection {
       this.send({ type: MSG.response, id: req.id, error: { code: -32602, message: `unknown tool: ${params.name}` } });
       return;
     }
+    // Create an AbortController for this request so $/cancel can abort it.
+    const ctl = new AbortController();
+    this.inFlightAbort.set(req.id, ctl);
     // Mark the connection busy for the duration of the tool call so
     // the heartbeat never tears it down mid-task (a slow tool =
     // silence on the wire, but the link is fine).
     this.inFlight += 1;
     try {
-      const result = await tool.run(params.arguments ?? {});
+      const result = await tool.run(params.arguments ?? {}, ctl.signal);
       this.send({ type: MSG.response, id: req.id, result });
     } catch (err) {
       this.send({
         type: MSG.response,
         id: req.id,
-        result: textResult(`tool "${params.name}" failed: ${err instanceof Error ? err.message : String(err)}`, true),
+        result: textResult(
+          ctl.signal.aborted
+            ? `tool "${params.name}" aborted by user`
+            : `tool "${params.name}" failed: ${err instanceof Error ? err.message : String(err)}`,
+          true,
+        ),
       });
     } finally {
+      this.inFlightAbort.delete(req.id);
       this.inFlight = Math.max(0, this.inFlight - 1);
       this.lastActivityAt = Date.now();
     }

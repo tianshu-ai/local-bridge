@@ -27,7 +27,7 @@ export interface ToolResult {
 /** A local tool: descriptor + handler. */
 export interface LocalTool {
   descriptor: ToolDescriptor;
-  run(args: Record<string, unknown>): Promise<ToolResult>;
+  run(args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult>;
 }
 
 export function textResult(text: string, isError = false): ToolResult {

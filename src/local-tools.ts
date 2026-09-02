@@ -140,7 +140,7 @@ Runs with the bridge user's own permissions on their real machine — but is jai
         required: ["command"],
       },
     },
-    async run(args: Record<string, unknown>): Promise<ToolResult> {
+    async run(args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult> {
       const command = String(args.command ?? "");
       if (!command) {
         return jsonResult(
@@ -192,6 +192,10 @@ Runs with the bridge user's own permissions on their real machine — but is jai
           timedOut = true;
           child.kill("SIGKILL");
         }, timeoutMs);
+        // Abort signal: kill the child process immediately
+        let aborted = false;
+        const onAbort = () => { aborted = true; child.kill("SIGKILL"); };
+        signal?.addEventListener("abort", onAbort, { once: true });
         child.stdout?.on("data", (d) => {
           stdout += d.toString();
         });
@@ -202,17 +206,22 @@ Runs with the bridge user's own permissions on their real machine — but is jai
           if (settled) return;
           settled = true;
           clearTimeout(timer);
+          signal?.removeEventListener("abort", onAbort);
           const so = truncate(stdout);
           const se = truncate(stderr);
+          const suffix = aborted ? "\n[local-bridge] aborted by user"
+            : timedOut ? `\n[local-bridge] killed after ${timeoutMs}ms timeout`
+            : "";
           resolve(
             jsonResult({
-              ok: exitCode === 0 && !timedOut,
+              ok: exitCode === 0 && !timedOut && !aborted,
               exit_code: exitCode,
               stdout: so.value,
-              stderr: timedOut ? `${se.value}${se.value ? "\n" : ""}[local-bridge] killed after ${timeoutMs}ms timeout` : se.value,
+              stderr: se.value + suffix,
               truncated: so.truncated || se.truncated,
               duration_ms: Date.now() - started,
               timed_out: timedOut,
+              aborted,
             }),
           );
         };
