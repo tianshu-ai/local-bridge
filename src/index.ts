@@ -227,10 +227,15 @@ async function main(): Promise<void> {
     tools,
     log: (m) => console.log(`[local-bridge] ${m}`),
     onActivity: (active) => {
-      // Send IPC message to parent (tray) if running as a child process
+      // Notify parent process about tool activity.
+      // Two channels: IPC (for CLI tray) and stdout JSON (for desktop app).
       if (process.send) {
         try { process.send({ type: "tool_activity", active }); } catch { /* parent gone */ }
       }
+      // Stdout JSON line — desktop app's Rust process reads stdout and
+      // detects lines starting with {"type":"tool_activity" to update
+      // the tray icon animation.
+      console.log(JSON.stringify({ type: "tool_activity", active }));
     },
   });
 
