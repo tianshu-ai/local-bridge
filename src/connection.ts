@@ -50,6 +50,8 @@ export class BridgeConnection {
   private lastActivityAt = 0;
   private inFlight = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private activityHeartbeat: ReturnType<typeof setInterval> | null = null;
+  private static ACTIVITY_HEARTBEAT_MS = 2000;
   // Only log the 'registered device' line on the FIRST ack of a
   // connection; heartbeat re-registers ack every ~20s and would spam it.
   private announcedRegistration = false;
@@ -301,6 +303,7 @@ export class BridgeConnection {
     // silence on the wire, but the link is fine).
     this.inFlight += 1;
     this.opts.onActivity?.(this.inFlight);
+    this.ensureActivityHeartbeat();
     try {
       const result = await tool.run(params.arguments ?? {}, ctl.signal);
       this.send({ type: MSG.response, id: req.id, result });
@@ -320,6 +323,29 @@ export class BridgeConnection {
       this.inFlight = Math.max(0, this.inFlight - 1);
       this.lastActivityAt = Date.now();
       this.opts.onActivity?.(this.inFlight);
+      if (this.inFlight === 0) this.stopActivityHeartbeat();
+    }
+  }
+
+  /** Periodic heartbeat while tools are in flight. Ensures the tray/desktop
+   *  sees repeated active=N signals. If the process dies or gets stuck,
+   *  the receiver's timeout (e.g. 4s) will auto-reset the icon. */
+  private ensureActivityHeartbeat(): void {
+    if (this.activityHeartbeat) return;
+    this.activityHeartbeat = setInterval(() => {
+      if (this.inFlight > 0) {
+        this.opts.onActivity?.(this.inFlight);
+      } else {
+        this.stopActivityHeartbeat();
+      }
+    }, BridgeConnection.ACTIVITY_HEARTBEAT_MS);
+    this.activityHeartbeat.unref?.();
+  }
+
+  private stopActivityHeartbeat(): void {
+    if (this.activityHeartbeat) {
+      clearInterval(this.activityHeartbeat);
+      this.activityHeartbeat = null;
     }
   }
 }
