@@ -234,8 +234,9 @@ async function main(): Promise<void> {
       }
       // Stdout JSON line — desktop app's Rust process reads stdout and
       // detects lines starting with {"type":"tool_activity" to update
-      // the tray icon animation.
-      console.log(JSON.stringify({ type: "tool_activity", active }));
+      // the tray icon animation. Use process.stdout.write (not console.log)
+      // to bypass any buffering and ensure immediate delivery.
+      try { process.stdout.write(JSON.stringify({ type: "tool_activity", active }) + "\n"); } catch { /* stdout closed */ }
     },
   });
 
