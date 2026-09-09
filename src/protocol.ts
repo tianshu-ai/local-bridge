@@ -9,6 +9,9 @@ export const MSG = {
   response: "reverse_mcp_response",
   request: "reverse_mcp_request",
   registered: "reverse_mcp_registered",
+  // Local notifications (bridge → tray/desktop, not sent over WS)
+  tool_active: "tool_active",
+  tool_done: "tool_done",
 } as const;
 
 /** A tool this bridge advertises (MCP Tool shape). */

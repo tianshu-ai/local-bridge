@@ -14,6 +14,8 @@ export interface BridgeOptions {
   label?: string;
   tools: LocalTool[];
   log?: (msg: string) => void;
+  /** Called when a tool starts/finishes executing. */
+  onActivity?: (active: number) => void;
 }
 
 const RECONNECT_BASE_MS = 1000;
@@ -298,6 +300,7 @@ export class BridgeConnection {
     // the heartbeat never tears it down mid-task (a slow tool =
     // silence on the wire, but the link is fine).
     this.inFlight += 1;
+    this.opts.onActivity?.(this.inFlight);
     try {
       const result = await tool.run(params.arguments ?? {}, ctl.signal);
       this.send({ type: MSG.response, id: req.id, result });
@@ -316,6 +319,7 @@ export class BridgeConnection {
       this.inFlightAbort.delete(req.id);
       this.inFlight = Math.max(0, this.inFlight - 1);
       this.lastActivityAt = Date.now();
+      this.opts.onActivity?.(this.inFlight);
     }
   }
 }

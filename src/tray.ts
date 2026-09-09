@@ -11,7 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig, saveConfig, configPath, ensureConfigFile, logPath, createProfile, type BridgeProfile, type MultiConfig } from "./profiles.js";
-import { BridgeManager } from "./bridge-manager.js";
+import { BridgeManager, type ActivityState } from "./bridge-manager.js";
 import { openSettingsWindow } from "./settings-window.js";
 import { createRequire } from "node:module";
 
@@ -81,6 +81,37 @@ function ensureTrayBinExecutable(): void {
 // ── state indicators ───────────────────────────────────────────────
 
 const STATE_ICON = { stopped: "○", starting: "◌", running: "●", error: "✕" } as const;
+
+// ── icon animation ─────────────────────────────────────────────────
+
+const ACTIVE_ICONS = ["on", "off"] as const; // alternating for pulse effect
+let animTimer: ReturnType<typeof setInterval> | null = null;
+let animFrame = 0;
+
+function startIconAnimation(systray: SysTrayInstance) {
+  if (animTimer) return;
+  animFrame = 0;
+  animTimer = setInterval(() => {
+    animFrame = (animFrame + 1) % 2;
+    const state = ACTIVE_ICONS[animFrame];
+    void systray.sendAction({
+      type: "update-menu",
+      menu: { icon: iconBase64(state), isTemplateIcon: process.platform === "darwin", title: "Tianshu Bridge", tooltip: "Tianshu Bridge: tool running…", items: [] },
+    });
+  }, 500);
+  animTimer.unref?.();
+}
+
+function stopIconAnimation(systray: SysTrayInstance, runningCount: number) {
+  if (animTimer) {
+    clearInterval(animTimer);
+    animTimer = null;
+  }
+  void systray.sendAction({
+    type: "update-menu",
+    menu: { icon: iconBase64(runningCount > 0 ? "on" : "off"), isTemplateIcon: process.platform === "darwin", title: "Tianshu Bridge", tooltip: `Tianshu Bridge: ${runningCount > 0 ? runningCount + " connected" : "stopped"}`, items: [] },
+  });
+}
 
 // ── tray ───────────────────────────────────────────────────────────
 
@@ -210,6 +241,16 @@ export async function runTray(): Promise<number> {
   // Refresh the menu whenever a profile's state changes.
   manager.onChange = () => {
     void systray.sendAction({ type: "update-menu", menu: buildMenu() });
+  };
+
+  // Animate the icon when tools are being executed.
+  manager.onActivity = (state) => {
+    if (state === "active") {
+      startIconAnimation(systray);
+    } else {
+      const runningCount = config.profiles.filter((p) => manager.isRunning(p.id)).length;
+      stopIconAnimation(systray, runningCount);
+    }
   };
 
   systray.onClick((action: { item?: unknown }) => {

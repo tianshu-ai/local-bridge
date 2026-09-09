@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { logPath, type BridgeProfile } from "./profiles.js";
 
 export type ProfileState = "stopped" | "starting" | "running" | "error";
+export type ActivityState = "idle" | "active";
 
 export interface ProfileStatus {
   id: string;
@@ -21,7 +22,16 @@ export interface ProfileStatus {
 export class BridgeManager {
   private processes = new Map<string, ChildProcess>();
   private states = new Map<string, ProfileState>();
+  private activeTools = new Map<string, number>(); // profileId → inFlight count
   onChange: (() => void) | null = null;
+  onActivity: ((state: ActivityState) => void) | null = null;
+
+  /** Total in-flight tool calls across all profiles. */
+  totalActive(): number {
+    let total = 0;
+    for (const n of this.activeTools.values()) total += n;
+    return total;
+  }
 
   getState(profileId: string): ProfileState {
     return this.states.get(profileId) ?? "stopped";
@@ -63,9 +73,25 @@ export class BridgeManager {
     }
 
     this.setState(profile.id, "starting");
+
+    // Write the onActivity bridge option into an env var that the child reads.
+    // The child process communicates activity back via IPC or a simpler
+    // mechanism: we write a named pipe / file. But for simplicity, since
+    // the child IS a bridge process, we use a different approach:
+    // The tray spawns bridge as a child with IPC, and listens for messages.
+    const profileId = profile.id;
     const proc = spawn(process.execPath, args, {
-      stdio: ["ignore", out, out],
+      stdio: ["ignore", out, out, "ipc"],
       windowsHide: true,
+    });
+
+    // Listen for IPC activity messages from the bridge child
+    proc.on("message", (msg: unknown) => {
+      const m = msg as { type?: string; active?: number } | null;
+      if (m?.type === "tool_activity") {
+        this.activeTools.set(profileId, m.active ?? 0);
+        this.onActivity?.(this.totalActive() > 0 ? "active" : "idle");
+      }
     });
 
     proc.on("spawn", () => {

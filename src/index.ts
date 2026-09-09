@@ -226,6 +226,12 @@ async function main(): Promise<void> {
     label,
     tools,
     log: (m) => console.log(`[local-bridge] ${m}`),
+    onActivity: (active) => {
+      // Send IPC message to parent (tray) if running as a child process
+      if (process.send) {
+        try { process.send({ type: "tool_activity", active }); } catch { /* parent gone */ }
+      }
+    },
   });
 
   const browserDesc = !browserOn
