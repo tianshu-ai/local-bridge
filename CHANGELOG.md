@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.12.0](https://github.com/tianshu-ai/local-bridge/compare/v0.11.0...v0.12.0) (2026-09-09)
+
+
+### Features
+
+* abort signal support — $/cancel kills running exec ([57e7056](https://github.com/tianshu-ai/local-bridge/commit/57e7056ccd5a31bd8250007c6d2723e1da0f1530))
+* activity heartbeat every 2s during tool execution (v0.12.4) ([2ac5dc9](https://github.com/tianshu-ai/local-bridge/commit/2ac5dc99866757118e2292dc8ddf22a16235d31c))
+* bump MAX_FILE_BYTES from 8MB to 32MB ([c2d24aa](https://github.com/tianshu-ai/local-bridge/commit/c2d24aa8a8fb51b4fe0fa5f84f24aca6798426df))
+* multi-profile support for bridge desktop (v0.12.0) ([dbb8624](https://github.com/tianshu-ai/local-bridge/commit/dbb862455f7ac000794c36ba8d7bece048460d2f))
+* remove per-file size cap entirely ([e6a2efe](https://github.com/tianshu-ai/local-bridge/commit/e6a2efe6821b289f9a854f0ea8919f569454f16d))
+* sync_up now returns file content (base64), not just manifest ([9509a13](https://github.com/tianshu-ai/local-bridge/commit/9509a13bbcc6d1fe648c1461478b669704915555))
+* tray icon animation during tool execution (v0.12.1) ([6c015f1](https://github.com/tianshu-ai/local-bridge/commit/6c015f14b5b250d94e63270e66b5fa72de8f4b6f))
+
+
+### Bug Fixes
+
+* also emit tool_activity as stdout JSON line (v0.12.2) ([1c79321](https://github.com/tianshu-ai/local-bridge/commit/1c79321514e1f706dd37f5232b23322ebc47179b))
+* use process.stdout.write for tool_activity (no buffering) (v0.12.3) ([0cfd005](https://github.com/tianshu-ai/local-bridge/commit/0cfd005afadea34f0a5dbd26b269ea8e2f394c55))
+
+
+### Refactor
+
+* remove sync_up/sync_down tools, keep only exec/read_file/write_file ([73da3b9](https://github.com/tianshu-ai/local-bridge/commit/73da3b95cecdda5300ae79ccbb9c443cafeb28f2))
+* sync_up returns manifest only, sync_down verifies paths only ([492b585](https://github.com/tianshu-ai/local-bridge/commit/492b5852cf25badb1cc6b94da8e5ec582f77b407))
+
 ## [0.11.0](https://github.com/tianshu-ai/local-bridge/compare/v0.10.3...v0.11.0) (2026-08-31)
 
 
