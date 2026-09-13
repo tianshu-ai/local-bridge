@@ -38,6 +38,15 @@
 //                                                   macOS menu-bar app
 //   tsbridge version                                print installed version
 
+// Install the rolling log tee AS EARLY AS POSSIBLE so subsequent
+// console.log / stdout / stderr writes (reconnect loops,
+// heartbeat warnings, tool-call traces, uncaught exceptions) all
+// land in ~/.tianshu-bridge/logs/bridge-YYYY-MM-DD.log. Correlate
+// with tianshu server logs by timestamp when debugging bridge_*_exec
+// hangs. See log-tee.ts for env knobs.
+import { installLogTee } from "./log-tee.js";
+installLogTee();
+
 import os from "node:os";
 import { BridgeConnection } from "./connection.js";
 import { connectMcpChild, bridgeOutputDir, resolveEmbeddedMcp } from "./mcp-child.js";
