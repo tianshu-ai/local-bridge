@@ -304,9 +304,30 @@ export class BridgeConnection {
     this.inFlight += 1;
     this.opts.onActivity?.(this.inFlight);
     this.ensureActivityHeartbeat();
+    // Trace this tool call from start to finish. Motivation (Yu,
+    // 2026-09-14 09:22): when the bridge<->server flow hangs, the
+    // bridge log currently shows only `active:N` heartbeats — no
+    // way to tell which tool + args ran, how long it took, whether
+    // the response was 200 bytes or 20 MB, or whether an error
+    // propagated to the server. `BRIDGE_LOG_LEVEL=debug` unlocks
+    // this trace; without it these lines stay silent so `active:N`
+    // heartbeats remain the info-level signal.
+    const debugOn = shouldDebug();
+    const startedAt = process.hrtime.bigint();
+    if (debugOn) {
+      this.log(
+        `[debug] tool_start name=${params.name} id=${req.id} args=${summarizeArgs(params.arguments)}`,
+      );
+    }
     try {
       const result = await tool.run(params.arguments ?? {}, ctl.signal);
       this.send({ type: MSG.response, id: req.id, result });
+      if (debugOn) {
+        const durationMs = Number((process.hrtime.bigint() - startedAt) / 1_000_000n);
+        this.log(
+          `[debug] tool_end name=${params.name} id=${req.id} duration_ms=${durationMs} outcome=ok result_bytes=${estimateResultBytes(result)}`,
+        );
+      }
     } catch (err) {
       this.send({
         type: MSG.response,
@@ -318,6 +339,16 @@ export class BridgeConnection {
           true,
         ),
       });
+      // Always log tool failures at info level — they're rare
+      // enough that noise isn't a concern, and losing one to a
+      // silent BRIDGE_LOG_LEVEL=info would defeat the point of
+      // having the log at all.
+      const durationMs = Number((process.hrtime.bigint() - startedAt) / 1_000_000n);
+      const outcome = ctl.signal.aborted ? "aborted" : "error";
+      const detail = err instanceof Error ? err.message : String(err);
+      this.log(
+        `tool_end name=${params.name} id=${req.id} duration_ms=${durationMs} outcome=${outcome} error=${JSON.stringify(detail).slice(0, 300)}`,
+      );
     } finally {
       this.inFlightAbort.delete(req.id);
       this.inFlight = Math.max(0, this.inFlight - 1);
@@ -347,5 +378,55 @@ export class BridgeConnection {
       clearInterval(this.activityHeartbeat);
       this.activityHeartbeat = null;
     }
+  }
+}
+
+// ── Log helpers ──────────────────────────────────────────────
+//
+// Bridge is a small enough surface that a full leveled-logger
+// module would be overkill. One env var + three tiny helpers
+// gives us start/end/duration traces on demand without
+// pulling in any logger dependency.
+//
+// BRIDGE_LOG_LEVEL is compared against the string "debug" or
+// "trace" — anything else falls through to the current
+// info-only behavior (tool errors always print).
+
+function shouldDebug(): boolean {
+  const lvl = String(process.env.BRIDGE_LOG_LEVEL ?? "").toLowerCase();
+  return lvl === "debug" || lvl === "trace";
+}
+
+/**
+ * Bounded JSON summary of tool args. Long values (file bodies,
+ * huge cmd stdout etc.) get truncated so a single tool_start line
+ * stays scannable. Never throws — an unserialisable arg becomes
+ * a placeholder.
+ */
+function summarizeArgs(args: unknown, maxLen = 300): string {
+  if (args === undefined || args === null) return "{}";
+  let s: string;
+  try {
+    s = typeof args === "string" ? args : JSON.stringify(args);
+  } catch {
+    return "[unserializable]";
+  }
+  if (s.length <= maxLen) return s;
+  return s.slice(0, maxLen) + `…(+${s.length - maxLen}b)`;
+}
+
+/**
+ * Rough byte size of a tool result for logging. We want to know
+ * when a bridge tool returned a huge blob without paying for a
+ * full serialisation on every call — fall back to a length hint
+ * or 0 on non-JSON values.
+ */
+function estimateResultBytes(result: unknown): number {
+  if (result === undefined || result === null) return 0;
+  if (typeof result === "string") return result.length;
+  try {
+    return JSON.stringify(result).length;
+  } catch {
+    return -1;
   }
 }
