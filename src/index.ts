@@ -166,12 +166,14 @@ async function main(): Promise<void> {
         });
         tools.push(...stealthTools);
       } catch (err) {
-        console.error(
+        console.warn(
           `[local-bridge] failed to start stealth browser (cloakbrowser-mcp): ${
             err instanceof Error ? err.message : String(err)
           }`,
         );
-        process.exit(1);
+        console.warn(
+          "[local-bridge] stealth browser tools disabled — other capabilities (shell, etc.) will still work.",
+        );
       }
     } else {
       // own engine: the full @playwright/mcp toolset pointed at the
@@ -202,12 +204,17 @@ async function main(): Promise<void> {
         const ownTools = await connectMcpChild({ command: ownCmd, args: ownArgs, log });
         tools.push(...ownTools);
       } catch (err) {
-        console.error(
+        console.warn(
           `[local-bridge] failed to start browser (@playwright/mcp): ${
             err instanceof Error ? err.message : String(err)
           }`,
         );
-        process.exit(1);
+        console.warn(
+          "[local-bridge] browser tools disabled — other capabilities (shell, etc.) will still work.",
+        );
+        // Don't exit: the bridge can still serve shell/file tools
+        // without a browser. Only exit(1) if NO tools end up enabled
+        // (the check below handles that).
       }
     }
   }
