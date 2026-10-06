@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.7](https://github.com/tianshu-ai/local-bridge/compare/v0.12.6...v0.12.7) (2026-10-06)
+
+
+### Bug Fixes
+
+* don't exit(1) when browser engine is unavailable ([e8ffbd5](https://github.com/tianshu-ai/local-bridge/commit/e8ffbd50fd1ff745aa5f15361f988a9dc901d33f))
+
 ## [0.12.0](https://github.com/tianshu-ai/local-bridge/compare/v0.11.0...v0.12.0) (2026-09-13)
 
 
