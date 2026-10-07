@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.8](https://github.com/tianshu-ai/local-bridge/compare/v0.12.7...v0.12.8) (2026-10-07)
+
+
+### Bug Fixes
+
+* **windows:** sanitise smart quotes in shell commands before exec ([144dc1b](https://github.com/tianshu-ai/local-bridge/commit/144dc1baa60d37a5439a458df322e38a6e2ae4b7))
+
 ## [0.12.7](https://github.com/tianshu-ai/local-bridge/compare/v0.12.6...v0.12.7) (2026-10-06)
 
 
