@@ -141,7 +141,14 @@ Runs with the bridge user's own permissions on their real machine — but is jai
       },
     },
     async run(args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult> {
-      const command = String(args.command ?? "");
+      const rawCommand = String(args.command ?? "");
+      // Sanitise Unicode typography that LLMs sometimes emit:
+      // smart quotes → ASCII straight quotes, em/en dash → hyphens.
+      // Windows cmd.exe / FINDSTR choke on these under GBK/OEM codepages.
+      const command = rawCommand
+        .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
+        .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'")
+        .replace(/[\u2013\u2014]/g, "-");
       if (!command) {
         return jsonResult(
           { ok: false, exit_code: -1, stdout: "", stderr: "command is required", truncated: false, duration_ms: 0, timed_out: false },
