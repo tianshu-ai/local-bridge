@@ -37,6 +37,56 @@ jobs:
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  # ── Next (pre-release) ── publish on every push to main ────────
+  publish-next:
+    needs: release-please
+    if: needs.release-please.outputs.release_created != 'true' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+          registry-url: "https://registry.npmjs.org"
+          cache: "npm"
+
+      - name: Install dependencies
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: npm ci --no-audit --no-fund
+
+      - run: npm run build
+
+      - name: Compute next version
+        id: ver
+        run: |
+          BASE=$(node -p "require('./package.json').version")
+          BASE=$(echo "$BASE" | sed 's/-.*//') 
+          N=$(git rev-list --count HEAD)
+          VERSION="${BASE}-next.${N}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing @tianshu-ai/local-bridge@$VERSION to next"
+
+      - name: Set version and publish
+        run: |
+          npm version "${{ steps.ver.outputs.version }}" --no-git-tag-version
+          npm publish --access public --tag next
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## :package: Published \`@tianshu-ai/local-bridge@${{ steps.ver.outputs.version }}\` to next" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Install: \`npm install @tianshu-ai/local-bridge@next\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Stable release ── publish on release-please tag ─────────────
   publish-npm:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
