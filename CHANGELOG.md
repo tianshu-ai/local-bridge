@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0](https://github.com/tianshu-ai/local-bridge/compare/v0.12.8...v0.13.0) (2026-10-10)
+
+
+### Features
+
+* publish-next CI job + promote workflow ([69929e7](https://github.com/tianshu-ai/local-bridge/commit/69929e7f994838eb19486949f5cf316a096d5338))
+
+
+### Bug Fixes
+
+* add @playwright/mcp to dependencies for npm installs ([95f6c41](https://github.com/tianshu-ai/local-bridge/commit/95f6c41bacd1dc63d544a0cc158d20a76fe4a83f))
+
 ## [0.12.8](https://github.com/tianshu-ai/local-bridge/compare/v0.12.7...v0.12.8) (2026-10-07)
 
 
