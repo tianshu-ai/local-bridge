@@ -36,6 +36,10 @@ RUN npm i -g @playwright/mcp@latest
 # Tianshu Local Bridge
 RUN npm i -g @tianshu-ai/local-bridge@latest
 
+# Put Chromium on PATH so agents can just run `chrome` or `chromium`
+RUN ln -s /ms-playwright/chromium-*/chrome-linux/chrome /usr/local/bin/chromium && \
+    ln -s /ms-playwright/chromium-*/chrome-linux/chrome /usr/local/bin/chrome
+
 # Working directory for agent tasks
 WORKDIR /workspace
 
