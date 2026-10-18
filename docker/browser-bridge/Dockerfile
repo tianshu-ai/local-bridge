@@ -14,12 +14,33 @@ FROM mcr.microsoft.com/playwright:v1.52.0-noble
 # Avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# System tools
+# System tools + compilers + language runtimes
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv \
     curl wget jq git zip unzip \
     imagemagick ffmpeg \
+    build-essential gcc g++ make cmake \
+    golang-go \
+    default-jdk \
+    ruby \
+    php-cli \
     && rm -rf /var/lib/apt/lists/*
+
+# Rust (rustup, minimal profile)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Deno
+RUN curl -fsSL https://deno.land/install.sh | sh
+ENV DENO_INSTALL="/root/.deno"
+ENV PATH="${DENO_INSTALL}/bin:${PATH}"
+
+# Bun
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
+
+# pnpm
+RUN npm i -g pnpm
 
 # Python packages commonly needed by agents
 RUN pip3 install --break-system-packages \
