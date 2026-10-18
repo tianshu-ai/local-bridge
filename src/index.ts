@@ -193,6 +193,10 @@ async function main(): Promise<void> {
         ownExtraArgs.push("--browser", channel);
         if (userDataDir) ownExtraArgs.push("--user-data-dir", userDataDir);
         if (!headful) ownExtraArgs.push("--headless");
+        // Running as root inside Docker requires --no-sandbox;
+        // detect via euid 0 (harmless on non-root, Chromium just
+        // ignores the redundant flag).
+        if (process.getuid?.() === 0) ownExtraArgs.push("--no-sandbox");
         log(`own: launching system ${channel}${headful ? "" : " (headless)"}`);
       }
       try {
