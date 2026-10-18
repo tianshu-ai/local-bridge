@@ -36,9 +36,12 @@ RUN npm i -g @playwright/mcp@latest
 # Tianshu Local Bridge
 RUN npm i -g @tianshu-ai/local-bridge@latest
 
-# Put Chromium on PATH so agents can just run `chrome` or `chromium`
+# Put Chromium on PATH and at /opt/google/chrome where Playwright MCP
+# expects the 'chrome' channel to live.
 RUN ln -s /ms-playwright/chromium-*/chrome-linux/chrome /usr/local/bin/chromium && \
-    ln -s /ms-playwright/chromium-*/chrome-linux/chrome /usr/local/bin/chrome
+    ln -s /ms-playwright/chromium-*/chrome-linux/chrome /usr/local/bin/chrome && \
+    mkdir -p /opt/google && \
+    ln -s /ms-playwright/chromium-*/chrome-linux/chrome /opt/google/chrome
 
 # Working directory for agent tasks
 WORKDIR /workspace
