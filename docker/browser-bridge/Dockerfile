@@ -33,8 +33,9 @@ RUN python3 -m playwright install-deps 2>/dev/null || true
 # Playwright MCP server (for optional direct MCP usage)
 RUN npm i -g @playwright/mcp@latest
 
-# Tianshu Local Bridge
-RUN npm i -g @tianshu-ai/local-bridge@latest
+# Tianshu Local Bridge (local build with --no-sandbox fix)
+COPY tianshu-ai-local-bridge-*.tgz /tmp/
+RUN npm i -g /tmp/tianshu-ai-local-bridge-*.tgz && rm /tmp/tianshu-ai-local-bridge-*.tgz
 
 # Put Chromium where Playwright MCP expects the 'chrome' channel:
 #   /opt/google/chrome/chrome  (standard Google Chrome install path)
