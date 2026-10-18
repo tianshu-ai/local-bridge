@@ -36,14 +36,15 @@ RUN npm i -g @playwright/mcp@latest
 # Tianshu Local Bridge
 RUN npm i -g @tianshu-ai/local-bridge@latest
 
-# Put Chromium on PATH and at /opt/google/chrome where Playwright MCP
-# expects the 'chrome' channel to live.
-# ln -s doesn't expand globs, so resolve the path first via bash.
-RUN CHROME=$(ls /ms-playwright/chromium-*/chrome-linux/chrome) && \
-    ln -s "$CHROME" /usr/local/bin/chromium && \
-    ln -s "$CHROME" /usr/local/bin/chrome && \
-    mkdir -p /opt/google && \
-    ln -s "$CHROME" /opt/google/chrome
+# Put Chromium where Playwright MCP expects the 'chrome' channel:
+#   /opt/google/chrome/chrome  (standard Google Chrome install path)
+# The base image may already have /opt/google/chrome/ as an empty dir.
+RUN CHROME=$(find /ms-playwright/chromium-[0-9]*/chrome-linux -maxdepth 1 -name chrome -type f | head -1) && \
+    echo "Resolved chrome binary: $CHROME" && \
+    ln -sf "$CHROME" /usr/local/bin/chromium && \
+    ln -sf "$CHROME" /usr/local/bin/chrome && \
+    mkdir -p /opt/google/chrome && \
+    ln -sf "$CHROME" /opt/google/chrome/chrome
 
 # Working directory for agent tasks
 WORKDIR /workspace
