@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/tianshu-ai/local-bridge/compare/v0.14.0...v0.14.1) (2026-10-21)
+
+
+### Refactor
+
+* bridge logs write to ~/.tianshu/logs/ (unified log dir) ([d02e71c](https://github.com/tianshu-ai/local-bridge/commit/d02e71c78c5446a7b24a2e18d6b2c0ccb86ade36))
+
 ## [0.14.0](https://github.com/tianshu-ai/local-bridge/compare/v0.13.0...v0.14.0) (2026-10-21)
 
 
