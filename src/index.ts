@@ -55,6 +55,9 @@ import { runUpdate, installedVersion } from "./update.js";
 import { installApp } from "./install-app.js";
 import { runTray } from "./tray.js";
 import type { LocalTool } from "./protocol.js";
+import { logCallback, createLogger } from "./logger.js";
+
+const log = createLogger("bridge");
 
 /** Is a Chrome already listening on this CDP endpoint? */
 async function probeCdp(cdpUrl: string): Promise<boolean> {
@@ -119,12 +122,12 @@ async function main(): Promise<void> {
 
   const server = typeof args.server === "string" ? args.server : "";
   if (!server) {
-    console.error("error: --server <wss://host/ws> is required");
-    console.error("example: tsbridge --server wss://tianshu.example.com/ws --token ***");
-    console.error("install:  npm i -g @tianshu-ai/local-bridge   (then run `tsbridge`)");
-    console.error("commands: tsbridge update [--check|--dry-run|--tag <t>]");
-    console.error("          tsbridge install-app [--run]   (macOS menu-bar app)");
-    console.error("          tsbridge version");
+    log.error("error: --server <wss://host/ws> is required");
+    log.error("example: tsbridge --server wss://tianshu.example.com/ws --token ***");
+    log.error("install:  npm i -g @tianshu-ai/local-bridge   (then run `tsbridge`)");
+    log.error("commands: tsbridge update [--check|--dry-run|--tag <t>]");
+    log.error("          tsbridge install-app [--run]   (macOS menu-bar app)");
+    log.error("          tsbridge version");
     process.exit(2);
   }
   const token = typeof args.token === "string" ? args.token : undefined;
@@ -162,16 +165,16 @@ async function main(): Promise<void> {
           command: stealthCmd,
           args: stealthArgs,
           env: { PLAYWRIGHT_MCP_HEADLESS: headful ? "false" : "true" },
-          log: (m) => console.log(`[local-bridge] ${m}`),
+          log: logCallback("bridge"),
         });
         tools.push(...stealthTools);
       } catch (err) {
-        console.warn(
+        log.warn(
           `[local-bridge] failed to start stealth browser (cloakbrowser-mcp): ${
             err instanceof Error ? err.message : String(err)
           }`,
         );
-        console.warn(
+        log.warn(
           "[local-bridge] stealth browser tools disabled — other capabilities (shell, etc.) will still work.",
         );
       }
@@ -180,13 +183,13 @@ async function main(): Promise<void> {
       // user's real Chrome — connect to a running Chrome over CDP if one
       // is up, else launch the system Chrome (channel). Same tool
       // surface as stealth; only the underlying browser differs.
-      const log = (m: string) => console.log(`[local-bridge] ${m}`);
+      const blogCb = logCallback("bridge");
       // Pin output dir explicitly so it never resolves against a bad cwd.
       const ownExtraArgs = ["--output-dir", bridgeOutputDir()];
       const cdpUp = cdpUrl ? await probeCdp(cdpUrl) : false;
       if (cdpUp) {
         ownExtraArgs.push("--cdp-endpoint", cdpUrl);
-        log(`own: connecting to your running Chrome at ${cdpUrl}`);
+        log.info(`own: connecting to your running Chrome at ${cdpUrl}`);
       } else {
         // @playwright/mcp: --browser takes a browser OR chrome channel
         // ("chrome", "msedge", …). Point it at the system Chrome.
@@ -197,7 +200,7 @@ async function main(): Promise<void> {
         // detect via euid 0 (harmless on non-root, Chromium just
         // ignores the redundant flag).
         if (process.getuid?.() === 0) ownExtraArgs.push("--no-sandbox");
-        log(`own: launching system ${channel}${headful ? "" : " (headless)"}`);
+        log.info(`own: launching system ${channel}${headful ? "" : " (headless)"}`);
       }
       try {
         const { command: ownCmd, args: ownArgs } = resolveEmbeddedMcp(
@@ -205,15 +208,15 @@ async function main(): Promise<void> {
           "cli.js",
           ownExtraArgs,
         );
-        const ownTools = await connectMcpChild({ command: ownCmd, args: ownArgs, log });
+        const ownTools = await connectMcpChild({ command: ownCmd, args: ownArgs, log: logCallback("browser") });
         tools.push(...ownTools);
       } catch (err) {
-        console.warn(
+        log.warn(
           `[local-bridge] failed to start browser (@playwright/mcp): ${
             err instanceof Error ? err.message : String(err)
           }`,
         );
-        console.warn(
+        log.warn(
           "[local-bridge] browser tools disabled — other capabilities (shell, etc.) will still work.",
         );
         // Don't exit: the bridge can still serve shell/file tools
@@ -227,13 +230,12 @@ async function main(): Promise<void> {
   // machine (no child MCP), mirroring the openshell plugin's
   // exec / sync_up / sync_down surface.
   if (shellOn) {
-    const log = (m: string) => console.log(`[local-bridge] ${m}`);
-    tools.push(...localTools({ root: shellRoot, log }));
-    log(`shell: exec + sync_up/sync_down enabled, jailed to ${shellRoot}`);
+    tools.push(...localTools({ root: shellRoot, log: logCallback("shell") }));
+    log.info(`shell: exec + sync_up/sync_down enabled, jailed to ${shellRoot}`);
   }
 
   if (tools.length === 0) {
-    console.error(
+    log.error(
       "[local-bridge] no tools enabled — nothing to expose. Remove --no-browser, or add --shell, and try again.",
     );
     process.exit(2);
@@ -245,7 +247,7 @@ async function main(): Promise<void> {
     deviceId,
     label,
     tools,
-    log: (m) => console.log(`[local-bridge] ${m}`),
+    log: logCallback("bridge"),
     onActivity: (active) => {
       // Notify parent process about tool activity.
       // Two channels: IPC (for CLI tray) and stdout JSON (for desktop app).
@@ -267,13 +269,13 @@ async function main(): Promise<void> {
       : cdpUrl
         ? `own: connect(${cdpUrl}) or ${channel}`
         : `own: ${channel}`;
-  console.log(
+  log.info(
     `[local-bridge] starting — device="${deviceId}", ${tools.length} tools, browser=${browserDesc}, shell=${shellOn ? "on" : "off"}`,
   );
   conn.start();
 
   const shutdown = () => {
-    console.log("\n[local-bridge] shutting down…");
+    log.info("\n[local-bridge] shutting down…");
     conn.stop();
     process.exit(0);
   };
@@ -282,6 +284,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(`[local-bridge] fatal: ${err instanceof Error ? err.message : String(err)}`);
+  log.error(`fatal: ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);
 });
