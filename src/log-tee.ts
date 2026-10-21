@@ -54,7 +54,7 @@ function resolveKeepDays(): number {
 function resolveLogDir(): string {
   const override = process.env.TIANSHU_BRIDGE_LOG_DIR;
   if (override && override.trim().length > 0) return override;
-  return join(homedir(), ".tianshu-bridge", "logs");
+  return join(homedir(), ".tianshu", "logs");
 }
 
 function pruneOldLogs(dir: string, keepDays: number): void {
