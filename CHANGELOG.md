@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.14.0](https://github.com/tianshu-ai/local-bridge/compare/v0.13.0...v0.14.0) (2026-10-21)
+
+
+### Features
+
+* browser-bridge Docker image (Chrome + Playwright + Python + Local Bridge) ([8c5b439](https://github.com/tianshu-ai/local-bridge/commit/8c5b439cb9a4c3eec28e8e249bcc9d3851d6205c))
+* full runtime stack - Go, Rust, Java, Ruby, PHP, GCC, Deno, Bun, pnpm ([2e7db30](https://github.com/tianshu-ai/local-bridge/commit/2e7db308f16f25ace8014938eaea17f01b0ed662))
+* migrate to pino structured logger ([d3625bf](https://github.com/tianshu-ai/local-bridge/commit/d3625bfa28f1c51706ea3fb6dadfbe1445c77911))
+
+
+### Bug Fixes
+
+* /opt/google/chrome/chrome symlink - use find to resolve exact path, handle pre-existing dir ([af441a3](https://github.com/tianshu-ai/local-bridge/commit/af441a3e28e12e47e9324258ef839d1be9c47718))
+* add --no-sandbox when running as root (Docker containers) ([8454d07](https://github.com/tianshu-ai/local-bridge/commit/8454d071fd5eccaee9d5c41518327f5f547b694f))
+* Dockerfile uses local tgz with --no-sandbox fix, proper chrome symlinks ([afdd244](https://github.com/tianshu-ai/local-bridge/commit/afdd24467f8edf1234497ff14325b72d8d264fce))
+* entrypoint supports both CLI args and env-var mode ([1c12faa](https://github.com/tianshu-ai/local-bridge/commit/1c12faa54fe55aca49daa85be669f1c31328153d))
+* resolve glob before ln -s so /opt/google/chrome symlink actually works ([32d17d1](https://github.com/tianshu-ai/local-bridge/commit/32d17d1cb9ad3c4fe1c9692c0776af96a1dbb210))
+* symlink /opt/google/chrome so Playwright MCP finds Chromium ([7dc397e](https://github.com/tianshu-ai/local-bridge/commit/7dc397e933a457537466d2d640f8554e5ccaa177))
+* symlink chromium to PATH so agents can run chrome/chromium directly ([c9ff0b9](https://github.com/tianshu-ai/local-bridge/commit/c9ff0b981ae97aa6992a11bbc7ee174a048f38bc))
+
 ## [0.13.0](https://github.com/tianshu-ai/local-bridge/compare/v0.12.8...v0.13.0) (2026-10-10)
 
 
