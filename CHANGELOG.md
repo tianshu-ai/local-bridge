@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/tianshu-ai/local-bridge/compare/v0.14.1...v0.15.0) (2026-10-25)
+
+
+### Features
+
+* streaming progress for exec tool ([9e2bddf](https://github.com/tianshu-ai/local-bridge/commit/9e2bddf2a1db585dadb517575f2e16538a90a9be))
+
 ## [0.14.1](https://github.com/tianshu-ai/local-bridge/compare/v0.14.0...v0.14.1) (2026-10-21)
 
 
