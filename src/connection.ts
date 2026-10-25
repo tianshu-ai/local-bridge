@@ -5,7 +5,7 @@
 // requests the server sends. Auto-reconnects with backoff.
 
 import WebSocket from "ws";
-import { MSG, textResult, type LocalTool, type RequestMsg, type ResponseMsg, type RegisterMsg } from "./protocol.js";
+import { MSG, textResult, type LocalTool, type RequestMsg, type ResponseMsg, type ProgressMsg, type RegisterMsg } from "./protocol.js";
 
 export interface BridgeOptions {
   server: string; // wss://host/ws
@@ -260,7 +260,7 @@ export class BridgeConnection {
     });
   }
 
-  private send(msg: ResponseMsg): void {
+  private send(msg: ResponseMsg | ProgressMsg): void {
     try {
       this.ws?.send(JSON.stringify(msg));
     } catch (err) {
@@ -320,7 +320,14 @@ export class BridgeConnection {
       );
     }
     try {
-      const result = await tool.run(params.arguments ?? {}, ctl.signal);
+      // Build a progress callback that sends streaming updates to the server.
+      // Only wired up for tools that declared streaming=true.
+      const onProgress = tool.descriptor.streaming ? (data: unknown) => {
+        try {
+          this.send({ type: MSG.progress, id: req.id, data });
+        } catch { /* socket may be gone */ }
+      } : undefined;
+      const result = await tool.run(params.arguments ?? {}, ctl.signal, onProgress);
       this.send({ type: MSG.response, id: req.id, result });
       if (debugOn) {
         const durationMs = Number((process.hrtime.bigint() - startedAt) / 1_000_000n);

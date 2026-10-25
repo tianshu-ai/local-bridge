@@ -28,7 +28,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { textResult, type LocalTool, type ToolResult } from "./protocol.js";
+import { textResult, type LocalTool, type ToolResult, type ProgressCallback } from "./protocol.js";
 
 // ─── tunables (mirroring openshell where it makes sense) ─────────────
 
@@ -111,6 +111,7 @@ export function ExecTool(opts: LocalToolsOptions): LocalTool {
   return {
     descriptor: {
       name: "exec",
+      streaming: true,
       description: `Run a shell command on THIS machine (the local-bridge device), via \`bash -c <command>\`.
 
 All shell activity is confined to a fixed root directory: ${opts.root}. The command runs
@@ -140,7 +141,7 @@ Runs with the bridge user's own permissions on their real machine — but is jai
         required: ["command"],
       },
     },
-    async run(args: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult> {
+    async run(args: Record<string, unknown>, signal?: AbortSignal, onProgress?: ProgressCallback): Promise<ToolResult> {
       const rawCommand = String(args.command ?? "");
       // Sanitise Unicode typography that LLMs sometimes emit:
       // smart quotes → ASCII straight quotes, em/en dash → hyphens.
@@ -204,10 +205,14 @@ Runs with the bridge user's own permissions on their real machine — but is jai
         const onAbort = () => { aborted = true; child.kill("SIGKILL"); };
         signal?.addEventListener("abort", onAbort, { once: true });
         child.stdout?.on("data", (d) => {
-          stdout += d.toString();
+          const chunk = d.toString();
+          stdout += chunk;
+          onProgress?.(chunk);
         });
         child.stderr?.on("data", (d) => {
-          stderr += d.toString();
+          const chunk = d.toString();
+          stderr += chunk;
+          onProgress?.(chunk);
         });
         const finish = (exitCode: number) => {
           if (settled) return;
