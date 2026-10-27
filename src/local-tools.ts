@@ -525,6 +525,104 @@ Per-file cap ${Math.round(MAX_FILE_BYTES / 1024 / 1024)}MiB.`,
   };
 }
 
+// ─── edit_file (in-place text replacement on bridge machine) ─────────
+
+export function EditFileTool(opts: LocalToolsOptions): LocalTool {
+  return {
+    descriptor: {
+      name: "edit_file",
+      description: `Apply targeted text replacements to an existing file on this machine.
+
+Each replacement finds an exact match of oldText in the file and replaces it with newText.
+Path is resolved relative to the shell root (${opts.root}); paths that escape it are rejected.
+The file must already exist. Use write_file to create new files.
+
+Prefer edit_file over write_file for modifying existing files — it avoids regenerating
+the entire file content and is much faster for large files.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: `File path, relative to the shell root (${opts.root}).`,
+          },
+          replacements: {
+            type: "array",
+            description: "List of {oldText, newText} replacements to apply in order.",
+            items: {
+              type: "object",
+              properties: {
+                oldText: { type: "string", description: "Exact text to find." },
+                newText: { type: "string", description: "Replacement text." },
+              },
+              required: ["oldText", "newText"],
+            },
+          },
+        },
+        required: ["path", "replacements"],
+      },
+    },
+    async run(args: Record<string, unknown>): Promise<ToolResult> {
+      const rel = String(args.path ?? "");
+      if (!rel) {
+        return jsonResult({ ok: false, error: "path is required" }, true);
+      }
+      const abs = resolveWithin(opts.root, rel);
+      if (!abs) {
+        return jsonResult({ ok: false, error: `path escapes shell root ${opts.root}` }, true);
+      }
+      if (!fs.existsSync(abs)) {
+        return jsonResult({ ok: false, error: `file not found: ${rel}` }, true);
+      }
+      if (fs.statSync(abs).isDirectory()) {
+        return jsonResult({ ok: false, error: `is a directory: ${rel}` }, true);
+      }
+
+      const replacements = args.replacements;
+      if (!Array.isArray(replacements) || replacements.length === 0) {
+        return jsonResult({ ok: false, error: "replacements array is required and must not be empty" }, true);
+      }
+
+      try {
+        let content = await fsp.readFile(abs, "utf8");
+        const applied: string[] = [];
+
+        for (let i = 0; i < replacements.length; i++) {
+          const r = replacements[i] as { oldText?: string; newText?: string };
+          const oldText = r.oldText ?? "";
+          const newText = r.newText ?? "";
+          if (!oldText) {
+            return jsonResult({ ok: false, error: `replacement[${i}]: oldText is empty` }, true);
+          }
+          const idx = content.indexOf(oldText);
+          if (idx === -1) {
+            return jsonResult({
+              ok: false,
+              error: `replacement[${i}]: oldText not found in file`,
+              oldTextPreview: oldText.slice(0, 100),
+            }, true);
+          }
+          // Check for ambiguity
+          if (content.indexOf(oldText, idx + 1) !== -1) {
+            return jsonResult({
+              ok: false,
+              error: `replacement[${i}]: oldText matches multiple locations — make it more specific`,
+              oldTextPreview: oldText.slice(0, 100),
+            }, true);
+          }
+          content = content.slice(0, idx) + newText + content.slice(idx + oldText.length);
+          applied.push(`[${i}] replaced ${oldText.length} chars with ${newText.length} chars`);
+        }
+
+        await fsp.writeFile(abs, content, "utf8");
+        return jsonResult({ ok: true, path: rel, applied: applied.length });
+      } catch (err) {
+        return jsonResult({ ok: false, error: err instanceof Error ? err.message : String(err) }, true);
+      }
+    },
+  };
+}
+
 // ─── factory ─────────────────────────────────────────────────────────
 
 /** The fixed default shell root: ~/.tianshu_shell. All exec + sync
@@ -535,5 +633,5 @@ export function defaultShellRoot(): string {
 
 /** Build the native local tool set, jailed to opts.root. */
 export function localTools(opts: LocalToolsOptions): LocalTool[] {
-  return [ExecTool(opts), ReadFileTool(opts), WriteFileTool(opts)];
+  return [ExecTool(opts), ReadFileTool(opts), WriteFileTool(opts), EditFileTool(opts)];
 }
