@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/tianshu-ai/local-bridge/compare/v0.15.0...v0.16.0) (2026-10-27)
+
+
+### Features
+
+* add edit_file tool for in-place text replacements ([0b4be0e](https://github.com/tianshu-ai/local-bridge/commit/0b4be0e3047cf12d199edbe5fe4767c1bfba1947))
+
 ## [0.15.0](https://github.com/tianshu-ai/local-bridge/compare/v0.14.1...v0.15.0) (2026-10-25)
 
 
