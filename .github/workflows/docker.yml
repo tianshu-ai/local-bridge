@@ -55,7 +55,7 @@ jobs:
             type=raw,value=latest
             type=sha,prefix=
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: docker/browser-bridge
           platforms: linux/amd64,linux/arm64
