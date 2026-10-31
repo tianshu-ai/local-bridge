@@ -623,6 +623,160 @@ the entire file content and is much faster for large files.`,
   };
 }
 
+
+// ─── move_file (rename/move on bridge machine) ──────────────────────
+
+export function MoveFileTool(opts: LocalToolsOptions): LocalTool {
+  return {
+    descriptor: {
+      name: "move_file",
+      description: `Move or rename a file or directory on this machine.
+
+Path is resolved relative to the shell root (${opts.root}); paths that escape it are rejected.
+Parent directories for the destination are created automatically.
+Also works as rename when source and destination are in the same directory.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          source: {
+            type: "string",
+            description: `Source path relative to shell root (${opts.root}).`,
+          },
+          destination: {
+            type: "string",
+            description: `Destination path relative to shell root (${opts.root}).`,
+          },
+          overwrite: {
+            type: "boolean",
+            description: "Allow overwriting an existing destination. Default false.",
+          },
+        },
+        required: ["source", "destination"],
+      },
+    },
+    async run(args: Record<string, unknown>): Promise<ToolResult> {
+      const srcRel = String(args.source ?? "");
+      const dstRel = String(args.destination ?? "");
+      if (!srcRel || !dstRel) return jsonResult({ ok: false, error: "source and destination are required" }, true);
+
+      const src = resolveWithin(opts.root, srcRel);
+      if (!src) return jsonResult({ ok: false, error: `source escapes shell root` }, true);
+      const dst = resolveWithin(opts.root, dstRel);
+      if (!dst) return jsonResult({ ok: false, error: `destination escapes shell root` }, true);
+
+      if (!fs.existsSync(src)) return jsonResult({ ok: false, error: `source not found: ${srcRel}` }, true);
+      if (fs.existsSync(dst) && !args.overwrite) {
+        return jsonResult({ ok: false, error: `destination already exists: ${dstRel} (pass overwrite=true)` }, true);
+      }
+
+      try {
+        await fsp.mkdir(path.dirname(dst), { recursive: true });
+        if (fs.existsSync(dst) && args.overwrite) await fsp.rm(dst, { recursive: true, force: true });
+        await fsp.rename(src, dst).catch(async (err) => {
+          if ((err as NodeJS.ErrnoException).code === "EXDEV") {
+            await fsp.cp(src, dst, { recursive: true });
+            await fsp.rm(src, { recursive: true, force: true });
+          } else throw err;
+        });
+        return jsonResult({ ok: true, source: srcRel, destination: dstRel });
+      } catch (err) {
+        return jsonResult({ ok: false, error: err instanceof Error ? err.message : String(err) }, true);
+      }
+    },
+  };
+}
+
+// ─── delete_file (delete on bridge machine) ─────────────────────────
+
+export function DeleteFileTool(opts: LocalToolsOptions): LocalTool {
+  return {
+    descriptor: {
+      name: "delete_file",
+      description: `Delete a file or directory on this machine.
+
+Path is resolved relative to the shell root (${opts.root}); paths that escape it are rejected.
+For directories, pass recursive=true.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: `Path relative to shell root (${opts.root}).`,
+          },
+          recursive: {
+            type: "boolean",
+            description: "Required for deleting non-empty directories. Default false.",
+          },
+        },
+        required: ["path"],
+      },
+    },
+    async run(args: Record<string, unknown>): Promise<ToolResult> {
+      const rel = String(args.path ?? "");
+      if (!rel) return jsonResult({ ok: false, error: "path is required" }, true);
+
+      const abs = resolveWithin(opts.root, rel);
+      if (!abs) return jsonResult({ ok: false, error: `path escapes shell root` }, true);
+      if (abs === path.resolve(opts.root)) return jsonResult({ ok: false, error: "cannot delete shell root" }, true);
+      if (!fs.existsSync(abs)) return jsonResult({ ok: false, error: `not found: ${rel}` }, true);
+
+      try {
+        const stat = fs.statSync(abs);
+        if (stat.isDirectory() && !args.recursive) {
+          return jsonResult({ ok: false, error: `is a directory — pass recursive=true to delete` }, true);
+        }
+        await fsp.rm(abs, { recursive: !!args.recursive, force: true });
+        return jsonResult({ ok: true, deleted: rel });
+      } catch (err) {
+        return jsonResult({ ok: false, error: err instanceof Error ? err.message : String(err) }, true);
+      }
+    },
+  };
+}
+
+// ─── list_dir (list directory on bridge machine) ────────────────────
+
+export function ListDirTool(opts: LocalToolsOptions): LocalTool {
+  return {
+    descriptor: {
+      name: "list_dir",
+      description: `List files and directories on this machine.
+
+Path is resolved relative to the shell root (${opts.root}); paths that escape it are rejected.
+Returns name, type (file/directory), and size for each entry.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: `Directory path relative to shell root (${opts.root}). Default ".".`,
+          },
+        },
+      },
+    },
+    async run(args: Record<string, unknown>): Promise<ToolResult> {
+      const rel = String(args.path ?? ".");
+      const abs = resolveWithin(opts.root, rel);
+      if (!abs) return jsonResult({ ok: false, error: `path escapes shell root` }, true);
+      if (!fs.existsSync(abs)) return jsonResult({ ok: false, error: `not found: ${rel}` }, true);
+      if (!fs.statSync(abs).isDirectory()) return jsonResult({ ok: false, error: `not a directory: ${rel}` }, true);
+
+      try {
+        const entries = await fsp.readdir(abs, { withFileTypes: true });
+        const result = entries.slice(0, 1000).map((e) => {
+          const fullPath = path.join(abs, e.name);
+          let size: number | undefined;
+          try { if (e.isFile()) size = fs.statSync(fullPath).size; } catch { /* */ }
+          return { name: e.name, type: e.isDirectory() ? "directory" : "file", size };
+        });
+        return jsonResult({ ok: true, path: rel, entries: result, truncated: entries.length > 1000 });
+      } catch (err) {
+        return jsonResult({ ok: false, error: err instanceof Error ? err.message : String(err) }, true);
+      }
+    },
+  };
+}
+
 // ─── factory ─────────────────────────────────────────────────────────
 
 /** The fixed default shell root: ~/.tianshu_shell. All exec + sync
@@ -633,5 +787,5 @@ export function defaultShellRoot(): string {
 
 /** Build the native local tool set, jailed to opts.root. */
 export function localTools(opts: LocalToolsOptions): LocalTool[] {
-  return [ExecTool(opts), ReadFileTool(opts), WriteFileTool(opts), EditFileTool(opts)];
+  return [ExecTool(opts), ReadFileTool(opts), WriteFileTool(opts), EditFileTool(opts), MoveFileTool(opts), DeleteFileTool(opts), ListDirTool(opts)];
 }
