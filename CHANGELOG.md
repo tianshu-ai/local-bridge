@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/tianshu-ai/local-bridge/compare/v0.16.0...v0.17.0) (2026-10-31)
+
+
+### Features
+
+* add move_file, delete_file, list_dir tools ([38f57b6](https://github.com/tianshu-ai/local-bridge/commit/38f57b664477047b882f1444633dd68a48c3c2b5))
+
 ## [0.16.0](https://github.com/tianshu-ai/local-bridge/compare/v0.15.0...v0.16.0) (2026-10-27)
 
 
