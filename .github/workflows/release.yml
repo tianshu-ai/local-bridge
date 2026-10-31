@@ -50,7 +50,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
@@ -101,7 +101,7 @@ jobs:
           ref: ${{ needs.release-please.outputs.tag_name }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
