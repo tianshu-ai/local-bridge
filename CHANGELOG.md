@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.18.0](https://github.com/tianshu-ai/local-bridge/compare/v0.17.0...v0.18.0) (2026-11-03)
+
+
+### Features
+
+* exit permanently on close code 4002 (kicked by user) ([8c6c19b](https://github.com/tianshu-ai/local-bridge/commit/8c6c19b509054a32e42b9555817ac88011936d1f))
+
+
+### Bug Fixes
+
+* back off 60s on close code 4001 (device already connected) ([3f16e70](https://github.com/tianshu-ai/local-bridge/commit/3f16e7052ad2f852080448d811ec9013e07f8e3f))
+
 ## [0.17.0](https://github.com/tianshu-ai/local-bridge/compare/v0.16.0...v0.17.0) (2026-10-31)
 
 
