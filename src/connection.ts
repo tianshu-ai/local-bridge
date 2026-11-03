@@ -224,6 +224,18 @@ export class BridgeConnection {
         this.log(`socket closed after stop (${why})`);
         return;
       }
+      // 4001 = server rejected us because another client from the same
+      // device is already connected. Don't fight it — back off hard.
+      if (code === 4001) {
+        this.log(
+          `rejected: another bridge client from this device is already connected. ` +
+          `Will retry in 60s in case the other client disconnects.`,
+        );
+        setTimeout(() => {
+          if (!this.closed) this.connect();
+        }, 60_000);
+        return;
+      }
       // First retry after a drop is immediate — a server restart is
       // usually back within a second, and waiting a full backoff step
       // feels like "it didn't reconnect". Subsequent retries back off.
