@@ -236,6 +236,15 @@ export class BridgeConnection {
         }, 60_000);
         return;
       }
+      // 4002 = user explicitly kicked this connection from the UI.
+      // Exit permanently — do NOT reconnect.
+      if (code === 4002) {
+        this.log(
+          `kicked by user from the tianshu UI. Exiting permanently.`,
+        );
+        this.closed = true;
+        process.exit(0);
+      }
       // First retry after a drop is immediate — a server restart is
       // usually back within a second, and waiting a full backoff step
       // feels like "it didn't reconnect". Subsequent retries back off.
